@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Công cụ Tách Excel & Gửi Email Đối Tác</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .container { max-width: 950px; margin: 0 auto; padding: 20px; }
+    .card {
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+      margin-bottom: 25px;
+    }
+    .alert-info {
+      background-color: #f0f9ff;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+      padding: 12px;
+      border-radius: 6px;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    input:focus, textarea:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+      outline: none;
+    }
+    .btn {
+      font-weight: bold; border-radius: 6px;
+      padding: 12px 20px; transition: all 0.2s;
+    }
+    .btn-primary {
+      background-color: #10b981; color: white;
+    }
+    .btn-primary:hover { background-color: #059669; transform: translateY(-1px); }
+  </style>
+</head>
+
+<body class="bg-gray-50 font-sans">
+  <div class="container">
+    <h1 class="text-3xl font-extrabold text-center text-gray-800 mb-6 border-b-2 border-emerald-500 pb-2">
+      🧩 Công cụ Tách Excel & Gửi Báo Cáo Qua Gmail
+    </h1>
+    <p class="text-center text-md mb-8 text-gray-600">
+      Cắt file Excel theo mã đối tác và gửi email tự động qua Gmail (SMTP).
+    </p>
+
+    <!-- ===================== KHỐI 1: TÁCH FILE EXCEL ===================== -->
+    <div class="card">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4">🧾 1. Tách File Excel</h2>
+
+      <form action="/split" method="post" enctype="multipart/form-data" class="space-y-4">
+        <div class="alert-info text-sm">
+          <b>Hướng dẫn:</b> Tách file Excel gốc thành nhiều file nhỏ theo cột (VD: “Mã Đối Tác”) và giữ nguyên template.
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">📂 File Excel gốc:</label>
+          <input type="file" name="file" accept=".xlsx,.xls" required />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">🧱 Tên cột cần chia:</label>
+          <input type="text" name="column_name" placeholder="VD: Mã Đối Tác" required />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">📄 Dòng cuối cùng của TEMPLATE:</label>
+            <input type="number" name="template_end_row" placeholder="VD: 4" required />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">📊 Dòng bắt đầu dữ liệu:</label>
+            <input type="number" name="start_row" placeholder="VD: 5" required />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">📈 Dòng kết thúc dữ liệu:</label>
+            <input type="number" name="end_row" placeholder="VD: 200" required />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Tách File và Tải ZIP</button>
+      </form>
+    </div>
+
+    <!-- ===================== KHỐI 2: GỬI EMAIL ===================== -->
+    <div class="card">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4">✉️ 2. Gửi Email Báo Cáo Cho Đối Tác</h2>
+
+      <form id="emailForm" action="/send_emails" method="post" enctype="multipart/form-data" class="space-y-6">
+
+        <!-- Thông tin Gmail -->
+        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <h3 class="text-lg font-semibold text-gray-700 mb-2">🔐 Thông tin Gmail (SMTP)</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tài khoản Gmail:</label>
+              <input type="email" name="gmail_user" placeholder="you@gmail.com" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu ứng dụng Gmail:</label>
+              <input type="password" name="gmail_password" placeholder="App password 16 ký tự" required />
+              <small class="text-xs text-gray-500">👉 Tạo trong Google Account → Bảo mật → Mật khẩu ứng dụng</small>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tên người gửi:</label>
+            <input type="text" name="sender_name" placeholder="VD: Công ty ABC" required />
+          </div>
+        </div>
+
+        <!-- File dữ liệu -->
+        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <h3 class="text-lg font-semibold text-gray-700 mb-2">📦 Dữ liệu gửi mail</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">ZIP chứa file Excel đã tách:</label>
+              <input type="file" name="split_zip" accept=".zip" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">File Excel chứa danh sách Email:</label>
+              <input type="file" name="email_file" accept=".xlsx,.xls" required />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Cột Mã NPP:</label>
+              <input type="text" name="ref_col" placeholder="VD: Mã NPP" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Cột Tên NPP:</label>
+              <input type="text" name="name_col" placeholder="VD: Tên NPP" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Cột Email chính:</label>
+              <input type="text" name="email_col" placeholder="VD: Email" required />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Cột Email CC:</label>
+              <input type="text" name="cc_col" placeholder="VD: Email_CC" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Dòng bắt đầu:</label>
+              <input type="number" name="start_row_email" placeholder="VD: 2"  required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Dòng kết thúc:</label>
+              <input type="number" name="end_row_email" placeholder="VD: 100" required />
+            </div>
+          </div>
+        </div>
+
+        <!-- Nội dung email -->
+        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <h3 class="text-lg font-semibold text-gray-700 mb-2">📝 Mẫu Email</h3>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tiêu đề:</label>
+          <input type="text" name="subject" value="Báo cáo tháng - {ten_npp}" required />
+          <label class="block text-sm font-medium text-gray-700 mb-1 mt-3">Nội dung:</label>
+          <textarea name="body" rows="5" required>Kính gửi {ten_npp},\nXin gửi anh/chị báo cáo tháng này.\nTrân trọng!</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full">🚀 Gửi Email Tự Động</button>
+      </form>
+    </div>
+
+    <footer class="text-center text-gray-500 text-xs mt-8 p-4 border-t">
+      © 2025 Flask Gmail Tool — Cắt Excel & Gửi Email qua tài khoản Gmail của bạn.
+    </footer>
+  </div>
+</body>
+</html>
