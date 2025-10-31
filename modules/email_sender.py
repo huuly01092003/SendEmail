@@ -21,21 +21,49 @@ def send_emails(
     subject_template="",
     body_template="",
     start_row=2,
-    end_row=99999
+    end_row=99999,
+    progress_callback=None
 ):
     """
     Gửi email qua Gmail SMTP kèm file Excel cho từng NPP.
     Trả về file CSV log dưới dạng BytesIO để tải về.
+    
+    progress_callback: function(current, total) để update tiến độ
     """
 
     df_email = pd.read_excel(email_file_path)
-    df_email = df_email.iloc[start_row-1:end_row]  # lấy dòng theo range
+    df_email = df_email.iloc[start_row-1:end_row]
 
     logs = []
     files = [f for f in os.listdir(excel_folder) if f.endswith(".xlsx")]
-    print(f"🔍 Tìm thấy {len(files)} file để gửi mail...\n")
+    total_files = len(files)
+    print(f"🔍 Tìm thấy {total_files} file để gửi mail...\n")
 
+    # ✅ MỞ KẾT NỐI SMTP 1 LẦN và giữ kết nối
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=60)
+        server.starttls()
+        server.login(gmail_user, gmail_password)
+        print("✅ Đã kết nối SMTP thành công\n")
+    except Exception as e:
+        print(f"❌ Lỗi kết nối Gmail SMTP: {str(e)}")
+        # Trả về log rỗng nếu không kết nối được
+        df_log = pd.DataFrame(logs, columns=[
+            "Thời gian", "Mã NPP", "Tên NPP", "Email chính", "Email CC", "Trạng thái", "Lỗi"
+        ])
+        output = BytesIO()
+        df_log.to_csv(output, index=False, encoding="utf-8-sig")
+        output.seek(0)
+        return output
+
+    current = 0
     for file in files:
+        current += 1
+        
+        # Update progress
+        if progress_callback:
+            progress_callback(current, total_files)
+        
         npp_code = os.path.splitext(file)[0]
         matched = df_email[df_email[selected_col_for_match].astype(str) == str(npp_code)]
 
@@ -69,20 +97,24 @@ def send_emails(
         msg.attach(part)
 
         try:
-            with smtplib.SMTP("smtp.gmail.com", 587) as server:
-                server.starttls()
-                server.login(gmail_user, gmail_password)
-                server.send_message(msg)
-
+            # Sử dụng kết nối đã mở
+            server.send_message(msg)
             logs.append([datetime.now(), npp_code, ten_npp, email_to, email_cc, "Thành công", ""])
-            print(f"✅ Gửi thành công cho {email_to} ({npp_code} - {ten_npp})")
+            print(f"✅ [{current}/{total_files}] Gửi thành công cho {email_to} ({npp_code} - {ten_npp})")
 
         except Exception as e:
             err = str(e)
             logs.append([datetime.now(), npp_code, ten_npp, email_to, email_cc, "Thất bại", err])
-            print(f"❌ Lỗi gửi {email_to} ({npp_code}): {err}")
+            print(f"❌ [{current}/{total_files}] Lỗi gửi {email_to} ({npp_code}): {err}")
 
-    # 🔽 Ghi log ra bộ nhớ RAM
+    # ✅ ĐÓNG KẾT NỐI SAU KHI GỬI XONG TẤT CẢ
+    try:
+        server.quit()
+        print("\n✅ Đã đóng kết nối SMTP")
+    except:
+        pass
+
+    # Ghi log ra bộ nhớ RAM
     df_log = pd.DataFrame(logs, columns=[
         "Thời gian", "Mã NPP", "Tên NPP", "Email chính", "Email CC", "Trạng thái", "Lỗi"
     ])
