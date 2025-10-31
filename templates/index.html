@@ -21,14 +21,14 @@
       padding: 12px;
       border-radius: 6px;
     }
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       padding: 10px;
       border: 1px solid #ddd;
       border-radius: 6px;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
       border-color: #3b82f6;
       box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
       outline: none;
@@ -76,7 +76,7 @@
       🧩 Công cụ Tách Excel & Gửi Báo Cáo Qua Gmail
     </h1>
     <p class="text-center text-md mb-8 text-gray-600">
-      Cắt file Excel theo mã đối tác và gửi email tự động qua Gmail (SMTP).
+      Cắt file Excel theo mã đối tác và gửi email tự động qua Gmail SMTP.
     </p>
 
     <!-- ===================== KHỐI 1: TÁCH FILE EXCEL ===================== -->
@@ -125,7 +125,11 @@
 
         <!-- Thông tin Gmail -->
         <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-          <h3 class="text-lg font-semibold text-gray-700 mb-2">🔐 Thông tin Gmail (SMTP)</h3>
+          <h3 class="text-lg font-semibold text-gray-700 mb-2">🔐 Thông tin Gmail SMTP</h3>
+          <div class="alert-info text-sm mb-3">
+            <b>✅ Hoạt động trên Railway/Fly.io</b><br>
+            📌 Tạo App Password: Google Account → Bảo mật → Mật khẩu ứng dụng
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Tài khoản Gmail:</label>
@@ -133,8 +137,7 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu ứng dụng Gmail:</label>
-              <input type="password" name="gmail_password" placeholder="App password 16 ký tự" required />
-              <small class="text-xs text-gray-500">👉 Tạo trong Google Account → Bảo mật → Mật khẩu ứng dụng</small>
+              <input type="password" name="gmail_password" placeholder="16 ký tự, không có dấu cách" required />
             </div>
           </div>
           <div class="mt-3">
@@ -214,7 +217,7 @@ Trân trọng!</textarea>
     </div>
 
     <footer class="text-center text-gray-500 text-xs mt-8 p-4 border-t">
-      © 2025 Flask Gmail Tool — Cắt Excel & Gửi Email qua tài khoản Gmail của bạn.
+      © 2025 Flask Gmail Tool — Deploy trên Railway/Fly.io để dùng Gmail SMTP miễn phí
     </footer>
   </div>
 
@@ -228,18 +231,14 @@ Trân trọng!</textarea>
       const progressText = document.getElementById('progressText');
       const downloadBtn = document.getElementById('downloadBtn');
       
-      // Disable submit button
       submitBtn.disabled = true;
       submitBtn.textContent = '⏳ Đang xử lý...';
-      
-      // Show progress section
       progressSection.style.display = 'block';
       downloadBtn.style.display = 'none';
       
       const formData = new FormData(e.target);
       
       try {
-        // Submit form
         const response = await fetch('/send_emails', {
           method: 'POST',
           body: formData
@@ -257,7 +256,6 @@ Trân trọng!</textarea>
         
         const jobId = result.job_id;
         
-        // Poll for progress
         const checkInterval = setInterval(async () => {
           const statusResponse = await fetch(`/check_status/${jobId}`);
           const status = await statusResponse.json();
@@ -287,7 +285,7 @@ Trân trọng!</textarea>
             submitBtn.textContent = '🚀 Gửi Email Tự Động';
             progressSection.style.display = 'none';
           }
-        }, 2000); // Check every 2 seconds
+        }, 2000);
         
       } catch (error) {
         alert('❌ Lỗi: ' + error.message);

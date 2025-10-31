@@ -6,6 +6,7 @@ from io import BytesIO
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+import ssl
 
 def send_emails(
     gmail_user,
@@ -26,9 +27,7 @@ def send_emails(
 ):
     """
     Gửi email qua Gmail SMTP kèm file Excel cho từng NPP.
-    Trả về file CSV log dưới dạng BytesIO để tải về.
-    
-    progress_callback: function(current, total) để update tiến độ
+    Tối ưu cho Railway/Fly.io (không bị chặn SMTP).
     """
 
     df_email = pd.read_excel(email_file_path)
@@ -39,22 +38,37 @@ def send_emails(
     total_files = len(files)
     print(f"🔍 Tìm thấy {total_files} file để gửi mail...\n")
 
+    # ✅ Tạo SSL context an toàn
+    context = ssl.create_default_context()
+
     # ✅ MỞ KẾT NỐI SMTP 1 LẦN và giữ kết nối
     try:
+        # Thử port 587 trước (TLS)
+        print("📧 Đang kết nối Gmail SMTP (port 587)...")
         server = smtplib.SMTP("smtp.gmail.com", 587, timeout=60)
-        server.starttls()
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
         server.login(gmail_user, gmail_password)
-        print("✅ Đã kết nối SMTP thành công\n")
+        print("✅ Đã kết nối Gmail SMTP thành công\n")
     except Exception as e:
-        print(f"❌ Lỗi kết nối Gmail SMTP: {str(e)}")
-        # Trả về log rỗng nếu không kết nối được
-        df_log = pd.DataFrame(logs, columns=[
-            "Thời gian", "Mã NPP", "Tên NPP", "Email chính", "Email CC", "Trạng thái", "Lỗi"
-        ])
-        output = BytesIO()
-        df_log.to_csv(output, index=False, encoding="utf-8-sig")
-        output.seek(0)
-        return output
+        print(f"❌ Lỗi port 587: {str(e)}")
+        # Thử port 465 (SSL) nếu 587 fail
+        try:
+            print("📧 Thử kết nối qua port 465 (SSL)...")
+            server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60, context=context)
+            server.login(gmail_user, gmail_password)
+            print("✅ Đã kết nối Gmail SMTP (SSL) thành công\n")
+        except Exception as e2:
+            print(f"❌ Lỗi kết nối Gmail SMTP: {str(e2)}")
+            # Trả về log rỗng nếu không kết nối được
+            df_log = pd.DataFrame(logs, columns=[
+                "Thời gian", "Mã NPP", "Tên NPP", "Email chính", "Email CC", "Trạng thái", "Lỗi"
+            ])
+            output = BytesIO()
+            df_log.to_csv(output, index=False, encoding="utf-8-sig")
+            output.seek(0)
+            return output
 
     current = 0
     for file in files:
