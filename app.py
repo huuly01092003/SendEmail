@@ -26,7 +26,7 @@ from email import encoders
 load_dotenv()
 
 # ✅ Flask App Config - CRITICAL FIXES
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # ✅ Session Config - FIX: Use memory + increase timeouts

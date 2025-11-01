@@ -2,110 +2,10 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Gmail OAuth - Tách Excel & Gửi Email</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .container { max-width: 950px; margin: 0 auto; padding: 20px; }
-    .card {
-      background: #ffffff;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
-      margin-bottom: 25px;
-    }
-    .alert-info {
-      background-color: #f0f9ff;
-      border-left: 4px solid #3b82f6;
-      color: #1e40af;
-      padding: 12px;
-      border-radius: 6px;
-    }
-    .alert-warning {
-      background-color: #fffbeb;
-      border-left: 4px solid #f59e0b;
-      color: #92400e;
-      padding: 12px;
-      border-radius: 6px;
-    }
-    input, textarea, select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    input:focus, textarea:focus, select:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
-      outline: none;
-    }
-    .btn {
-      font-weight: bold; border-radius: 6px;
-      padding: 12px 20px; transition: all 0.2s;
-      display: inline-block;
-      text-decoration: none;
-      text-align: center;
-      cursor: pointer;
-      border: none;
-    }
-    .btn-primary {
-      background-color: #10b981; color: white;
-    }
-    .btn-primary:hover { background-color: #059669; transform: translateY(-1px); }
-    .btn-primary:disabled {
-      background-color: #9ca3af;
-      cursor: not-allowed;
-      transform: none;
-    }
-    .btn-danger {
-      background-color: #ef4444; color: white;
-    }
-    .btn-danger:hover { background-color: #dc2626; }
-    .progress-bar {
-      width: 100%;
-      height: 30px;
-      background-color: #e5e7eb;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-top: 15px;
-    }
-    .progress-fill {
-      height: 100%;
-      background-color: #10b981;
-      transition: width 0.3s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: bold;
-    }
-    #progressSection {
-      display: none;
-    }
-    .navbar {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 15px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 25px;
-      border-radius: 8px;
-    }
-    .navbar h1 { margin: 0; font-size: 1.5rem; }
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-    }
-    .user-email {
-      background: rgba(255,255,255,0.2);
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 0.9rem;
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
 <body class="bg-gray-50 font-sans">
@@ -150,7 +50,7 @@
     <div class="card">
       <h2 class="text-2xl font-bold text-gray-700 mb-4">🧾 1. Tách File Excel</h2>
 
-      <form action="/split" method="post" enctype="multipart/form-data" class="space-y-4">
+      <form action="/split" method="post" enctype="multipart/form-data" class="space-y-4" id="splitForm">
         <div class="alert-info text-sm">
           <b>Hướng dẫn:</b> Tách file Excel gốc thành nhiều file nhỏ theo cột (VD: "Mã Đối Tác") và giữ nguyên template.
         </div>
@@ -168,11 +68,11 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">📄 Dòng cuối TEMPLATE:</label>
-            <input type="number" name="template_end_row" placeholder="VD: 4" required />
+            <input type="number" name="template_end_row" placeholder="VD: 6" required />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">📊 Dòng bắt đầu dữ liệu:</label>
-            <input type="number" name="start_row" placeholder="VD: 5" required />
+            <input type="number" name="start_row" placeholder="VD: 7" required />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">📈 Dòng kết thúc dữ liệu:</label>
@@ -180,8 +80,16 @@
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">⬇️ Tách File và Tải ZIP</button>
+        <button type="submit" class="btn btn-primary w-full">⬇️ Tách File và Tải ZIP</button>
       </form>
+
+      <!-- Split Progress -->
+      <div id="splitProgressSection" class="mt-6 border border-blue-200 rounded-lg p-4 bg-blue-50" style="display: none;">
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">⏳ Đang xử lý...</h3>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 100%; background-color: #3b82f6;">Đang tách file...</div>
+        </div>
+      </div>
     </div>
 
     <!-- KHỐI 2: GỬI EMAIL -->
@@ -269,7 +177,7 @@ Trân trọng!</textarea>
         </form>
 
         <!-- Progress Section -->
-        <div id="progressSection" class="mt-6 border border-green-200 rounded-lg p-4 bg-green-50">
+        <div id="progressSection" class="mt-6 border border-green-200 rounded-lg p-4 bg-green-50" style="display: none;">
           <h3 class="text-lg font-semibold text-gray-700 mb-2">📊 Tiến độ gửi email</h3>
           <div class="progress-bar">
             <div id="progressFill" class="progress-fill" style="width: 0%">0%</div>
@@ -285,79 +193,6 @@ Trân trọng!</textarea>
     </footer>
   </div>
 
-  <script>
-    document.getElementById('emailForm')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const submitBtn = document.getElementById('submitBtn');
-      const progressSection = document.getElementById('progressSection');
-      const progressFill = document.getElementById('progressFill');
-      const progressText = document.getElementById('progressText');
-      const downloadBtn = document.getElementById('downloadBtn');
-      
-      submitBtn.disabled = true;
-      submitBtn.textContent = '⏳ Đang xử lý...';
-      progressSection.style.display = 'block';
-      downloadBtn.style.display = 'none';
-      
-      const formData = new FormData(e.target);
-      
-      try {
-        const response = await fetch('/send_emails', {
-          method: 'POST',
-          body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (result.error) {
-          alert('❌ Lỗi: ' + result.error);
-          submitBtn.disabled = false;
-          submitBtn.textContent = '🚀 Gửi Email Tự Động';
-          progressSection.style.display = 'none';
-          return;
-        }
-        
-        const jobId = result.job_id;
-        
-        const checkInterval = setInterval(async () => {
-          const statusResponse = await fetch(`/check_status/${jobId}`);
-          const status = await statusResponse.json();
-          
-          if (status.status === 'processing') {
-            const progress = status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0;
-            progressFill.style.width = progress + '%';
-            progressFill.textContent = progress + '%';
-            progressText.textContent = `Đã gửi ${status.progress}/${status.total} email...`;
-          } else if (status.status === 'completed') {
-            clearInterval(checkInterval);
-            progressFill.style.width = '100%';
-            progressFill.textContent = '100%';
-            progressText.textContent = '✅ Hoàn tất! Nhấn nút bên dưới để tải file log.';
-            
-            downloadBtn.style.display = 'block';
-            downloadBtn.onclick = () => {
-              window.location.href = `/download_log/${jobId}`;
-            };
-            
-            submitBtn.disabled = false;
-            submitBtn.textContent = '🚀 Gửi Email Tự Động';
-          } else if (status.status === 'failed') {
-            clearInterval(checkInterval);
-            alert('❌ Gửi email thất bại!');
-            submitBtn.disabled = false;
-            submitBtn.textContent = '🚀 Gửi Email Tự Động';
-            progressSection.style.display = 'none';
-          }
-        }, 2000);
-        
-      } catch (error) {
-        alert('❌ Lỗi: ' + error.message);
-        submitBtn.disabled = false;
-        submitBtn.textContent = '🚀 Gửi Email Tự Động';
-        progressSection.style.display = 'none';
-      }
-    });
-  </script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@ from flask import request, send_file
 import pandas as pd
 import zipfile
 from io import BytesIO
-from .utils import copy_excel_template_and_insert_data
+from .utils import copy_excel_template_and_insert_data_with_merged_cells
 
 def split_excel():
     # 🧩 1️⃣ Kiểm tra file upload
@@ -54,7 +54,8 @@ def split_excel():
             name = str(val).strip().replace("/", "_").replace("\\", "_") or "khong_ten"
 
             # Sao chép template & chèn dữ liệu (trả về BytesIO)
-            buf = copy_excel_template_and_insert_data(
+            # ✅ FIX: Dùng hàm mới có support merged cells
+            buf = copy_excel_template_and_insert_data_with_merged_cells(
                 BytesIO(file_bytes), group.reset_index(drop=True),
                 template_end_row, template_end_row + 1
             )
