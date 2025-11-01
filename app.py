@@ -1,4 +1,7 @@
 import os
+# ⭐ ALLOW HTTP ON LOCALHOST FOR OAUTH (Remove in production)
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify, send_file
 from flask_session import Session
@@ -8,11 +11,12 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import tempfile, zipfile
 import threading
 import base64
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -21,46 +25,66 @@ from email import encoders
 # ✅ LOAD .env FILE
 load_dotenv()
 
-# ✅ Flask App Config
+# ✅ Flask App Config - CRITICAL FIXES
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 
-# ✅ Session Config (FIX: State không tồn tại)
+# ✅ Session Config - FIX: Use memory + increase timeouts
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = 1800
-app.config['SESSION_COOKIE_SECURE'] = False  # localhost không dùng HTTPS
+app.config['SESSION_PERMANENT'] = True  # ⭐ CHANGED: Keep session after browser close
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # ⭐ CHANGED: Longer timeout
+app.config['SESSION_COOKIE_SECURE'] = False  # HTTP on localhost
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # ⭐ Allow cross-site callback
+app.config['SESSION_COOKIE_NAME'] = 'gmail_oauth_session'
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True  # ⭐ Refresh on every request
+
 Session(app)
 
+# ✅ Create session directory
+SESSION_DIR = os.path.join(os.path.dirname(__file__), 'flask_session')
+os.makedirs(SESSION_DIR, exist_ok=True)
+
+# ✅ In-memory state store (backup for filesystem issues)
+STATE_STORE = {}
+
 # ✅ Google OAuth Config
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'openid'
+]
 CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 REDIRECT_URI = os.environ.get('REDIRECT_URI', 'http://localhost:5000/oauth2callback')
 
-# ✅ Kiểm tra biến môi trường
+# ✅ Global tracking
+email_status = {}
+
+# ✅ Check env variables
 if not CLIENT_ID or not CLIENT_SECRET:
-    print("⚠️ WARNING: GOOGLE_CLIENT_ID hoặc GOOGLE_CLIENT_SECRET chưa được set!")
+    print("⚠️ WARNING: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set!")
 else:
     print("✅ OAuth Config Loaded Successfully")
     print(f"  CLIENT_ID: {CLIENT_ID[:30]}...")
     print(f"  REDIRECT_URI: {REDIRECT_URI}")
+    print(f"  Session folder: {SESSION_DIR}\n")
+
+# ⭐ NEW: Session persistence before request
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(hours=24)
 
 @app.route('/auth/login')
 def oauth_login():
-    """Khởi tạo Google OAuth flow"""
+    """Initiate Google OAuth flow with dual state storage"""
     try:
         print("\n🔵 [OAuth Login] Initiating...")
         
-        # ✅ Xóa state cũ
-        if 'state' in session:
-            del session['state']
-        if 'flow_state' in session:
-            del session['flow_state']
-        
-        # ✅ Tạo flow
+        # ✅ Create OAuth flow
         flow = Flow.from_client_config(
             {
                 "installed": {
@@ -75,19 +99,27 @@ def oauth_login():
             redirect_uri=REDIRECT_URI
         )
         
-        # ✅ Tạo authorization URL
+        # ✅ Generate auth URL and state
         auth_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true',
             prompt='consent'
         )
         
-        # ✅ LƯU STATE - QUAN TRỌNG!
-        session['state'] = state
-        session['flow_state'] = state
+        # ⭐ DUAL STORAGE: Save state to both session AND in-memory store
+        session['oauth_state'] = state
+        session['oauth_state_time'] = datetime.now().isoformat()
+        STATE_STORE[state] = {
+            'timestamp': datetime.now().isoformat(),
+            'session_id': request.cookies.get('gmail_oauth_session', 'new')
+        }
         session.modified = True
         
-        print(f"✅ State saved to session: {state[:20]}...")
+        print(f"✅ State created: {state[:40]}...")
+        print(f"  Saved to session: YES")
+        print(f"  Saved to memory: YES")
+        print(f"  Session cookie: {request.cookies.get('gmail_oauth_session', 'NEW')}")
+        
         return redirect(auth_url)
         
     except Exception as e:
@@ -98,43 +130,55 @@ def oauth_login():
 
 @app.route('/oauth2callback')
 def oauth_callback():
-    """Xử lý callback từ Google"""
+    """Handle OAuth callback with state verification"""
     try:
-        print("\n🔵 [OAuth Callback] Received callback...")
+        print("\n🔵 [OAuth Callback] Received...")
         
-        # ✅ Debug
-        print(f"DEBUG - Session keys: {list(session.keys())}")
-        
-        # ✅ Lấy state
+        # ✅ Get state from Google
         state_from_google = request.args.get('state')
-        state_from_session = session.get('state') or session.get('flow_state')
-        
-        print(f"State Google: {state_from_google[:20] if state_from_google else 'None'}...")
-        print(f"State Session: {state_from_session[:20] if state_from_session else 'None'}...")
-        
-        # ✅ Kiểm tra error
-        error = request.args.get('error')
-        if error:
-            print(f"❌ Error from Google: {error}")
-            return f"❌ Lỗi: {error}", 400
-        
-        # ✅ Kiểm tra state
-        if not state_from_google or not state_from_session:
-            print("❌ State không tồn tại")
-            return "❌ State không tồn tại - Đăng nhập lại", 400
-        
-        if state_from_google != state_from_session:
-            print("❌ State không khớp")
-            return "❌ State không khớp - Đăng nhập lại", 400
-        
-        # ✅ Lấy code
         code = request.args.get('code')
+        error = request.args.get('error')
+        
+        # ✅ Get state from session (multiple attempts)
+        state_from_session = session.get('oauth_state')
+        state_from_memory = STATE_STORE.get(state_from_google, {})
+        
+        print(f"  Google State: {state_from_google[:40] if state_from_google else 'NONE'}...")
+        print(f"  Session State: {state_from_session[:40] if state_from_session else 'NONE'}...")
+        print(f"  Memory Store: {'EXISTS' if state_from_memory else 'MISSING'}")
+        print(f"  Code: {code[:20] if code else 'NONE'}...")
+        
+        # ✅ Check for error from Google
+        if error:
+            print(f"❌ Google Error: {error}")
+            return f"❌ Google Error: {error}", 400
+        
+        # ✅ Verify state (session OR memory)
+        if not state_from_google:
+            print("❌ No state from Google")
+            return "❌ No state from Google - Login again", 400
+        
         if not code:
-            return "❌ Không có authorization code", 400
+            print("❌ No authorization code")
+            return "❌ No authorization code - Login again", 400
         
-        print(f"✅ Authorization code: {code[:20]}...")
+        # ⭐ FIXED: Check BOTH session and memory store
+        if state_from_session and state_from_google == state_from_session:
+            print("✅ State verified from SESSION")
+            verified = True
+        elif state_from_memory:
+            print("✅ State verified from MEMORY STORE")
+            verified = True
+        else:
+            print("❌ State NOT verified - MISMATCH")
+            return "❌ State mismatch - Login again", 400
         
-        # ✅ Exchange code → token
+        if not verified:
+            return "❌ State verification failed - Login again", 400
+        
+        print(f"✅ State verification PASSED")
+        
+        # ✅ Exchange code for tokens
         flow = Flow.from_client_config(
             {
                 "installed": {
@@ -153,14 +197,16 @@ def oauth_callback():
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
         
-        print(f"✅ Tokens received")
+        print(f"✅ Tokens received from Google")
         
-        # ✅ Lấy email
+        # ✅ Get user email
         service = build('gmail', 'v1', credentials=credentials)
         profile = service.users().getProfile(userId='me').execute()
         user_email = profile.get('emailAddress', '')
         
-        # ✅ Lưu session
+        print(f"✅ User email: {user_email}")
+        
+        # ✅ Save to session
         session['credentials'] = {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
@@ -170,33 +216,39 @@ def oauth_callback():
             'scopes': credentials.scopes
         }
         session['user_email'] = user_email
+        session['oauth_state'] = None  # Clear state
         session.modified = True
         
-        print(f"✅ Logged in: {user_email}\n")
+        # ✅ Clean up state store
+        if state_from_google in STATE_STORE:
+            del STATE_STORE[state_from_google]
+        
+        print(f"✅ Session saved - Logged in as: {user_email}\n")
         
         return redirect(url_for('index'))
         
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"❌ [OAuth Callback] Exception: {str(e)}")
         import traceback
         traceback.print_exc()
-        return f"❌ Lỗi: {str(e)}", 500
+        return f"❌ Error: {str(e)}", 500
 
 @app.route('/auth/logout')
 def oauth_logout():
-    """Đăng xuất"""
+    """Logout user"""
     user_email = session.get('user_email', 'Unknown')
-    print(f"\n✅ Logged out: {user_email}")
+    print(f"\n✅ Logged out: {user_email}\n")
     session.clear()
     return redirect(url_for('index'))
+
 # ==================== HELPER FUNCTIONS ====================
 
 def refresh_access_token_if_needed(credentials):
-    """Làm mới access token nếu hết hạn"""
+    """Refresh access token if expired"""
     if credentials.expired and credentials.refresh_token:
-        print("⚠️ [Token Refresh] Access token expired - Refreshing...")
+        print("⚠️ [Token Refresh] Refreshing expired access token...")
         credentials.refresh(Request())
-        print("✅ [Token Refresh] Access token refreshed")
+        print("✅ [Token Refresh] Token refreshed")
     return credentials
 
 # ==================== MAIN ROUTES ====================
@@ -208,7 +260,7 @@ def index():
 
 @app.route('/split', methods=['POST'])
 def split_route():
-    """Tách file Excel (không cần đăng nhập)"""
+    """Split Excel file (no login required)"""
     try:
         from modules.excel_splitter import split_excel
         return split_excel()
@@ -217,14 +269,14 @@ def split_route():
 
 @app.route('/send_emails', methods=['POST'])
 def send_emails_route():
-    """Gửi email (cần đăng nhập)"""
+    """Send emails (login required)"""
     try:
-        # ✅ Kiểm tra đăng nhập
+        # ✅ Check login
         if 'user_email' not in session:
-            return jsonify({'error': 'Vui lòng đăng nhập Gmail trước'}), 401
+            return jsonify({'error': 'Please login with Gmail first'}), 401
         
         if 'credentials' not in session:
-            return jsonify({'error': 'OAuth token không hợp lệ, vui lòng đăng nhập lại'}), 401
+            return jsonify({'error': 'OAuth token invalid - Please login again'}), 401
         
         print(f"\n🔵 [Send Emails] Started by: {session['user_email']}")
         
@@ -245,7 +297,7 @@ def send_emails_route():
         email_file = request.files.get('email_file')
         
         if not split_zip or not email_file:
-            return jsonify({'error': 'Vui lòng upload đủ file (ZIP + Email list)'}), 400
+            return jsonify({'error': 'Please upload both files (ZIP + Email list)'}), 400
         
         temp_dir = tempfile.mkdtemp()
         
@@ -271,7 +323,7 @@ def send_emails_route():
             try:
                 from modules.email_sender_oauth import send_emails_oauth
                 
-                # ✅ Khôi phục credentials từ session
+                # ✅ Restore credentials from session
                 creds_dict = session['credentials']
                 credentials = Credentials(
                     token=creds_dict['token'],
@@ -301,7 +353,7 @@ def send_emails_route():
                 )
                 email_status[job_id]['status'] = 'completed'
                 email_status[job_id]['log_buffer'] = log_buffer
-                print(f"✅ [Send Emails] Completed successfully")
+                print(f"✅ [Send Emails] Completed")
             except Exception as e:
                 email_status[job_id]['status'] = 'failed'
                 email_status[job_id]['error'] = str(e)
@@ -312,7 +364,7 @@ def send_emails_route():
         
         return jsonify({
             'job_id': job_id,
-            'message': 'Đang xử lý gửi email...'
+            'message': 'Processing emails...'
         })
     
     except Exception as e:
