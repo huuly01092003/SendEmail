@@ -1,151 +1,280 @@
-# 🚀 Hướng Dẫn Deploy Gmail OAuth Tool Lên Railway
+# 🚀 Gmail OAuth Tool - Tách Excel & Gửi Email
 
-## 📋 Bước 1: Setup Google Cloud OAuth
+Ứng dụng web cho phép tách file Excel và gửi email tự động thông qua Gmail OAuth 2.0.
 
-### 1.1 Tạo Google Cloud Project
-1. Vào https://console.cloud.google.com
-2. Nhấp **"Tạo dự án"** → Đặt tên `Gmail OAuth App`
-3. Chờ dự án được tạo
+## ✨ Tính Năng
 
-### 1.2 Bật Gmail API
-1. Tìm kiếm **"Gmail API"** trên thanh tìm kiếm
-2. Nhấp vào **Gmail API** → Nhấp **"Bật"**
-
-### 1.3 Tạo OAuth 2.0 Credentials
-1. Vào **"Xác thực"** (Authentication) ở menu trái
-2. Nhấp **"+ Tạo Credentials"** → **"OAuth 2.0 Client ID"**
-3. **Lần đầu:** Nhấp **"Cấu hình OAuth Consent Screen"**
-   - Chọn **"External"** → **"Tạo"**
-   - Điền App name: `Gmail OAuth Tool`
-   - Thêm email: Tài khoản Google của bạn
-   - Thêm scopes: Tìm và chọn `gmail.send`
-   - Nhấp **"Lưu và tiếp tục"** cho đến hết
-
-### 1.4 Lấy Client ID & Secret
-1. Quay lại **"Xác thực"** → **"+ Tạo Credentials"** → **"OAuth 2.0 Client ID"**
-2. Chọn **"Web application"**
-3. Thêm Authorized redirect URIs:
-   - `http://localhost:5000/oauth2callback` (Local testing)
-   - `https://yourdomain.railway.app/oauth2callback` (Railway)
-4. Nhấp **"Tạo"**
-5. **Sao chép** `Client ID` và `Client Secret`
+- ✅ **Tách File Excel**: Chia file Excel thành nhiều file nhỏ theo cột
+- ✅ **Gửi Email Tự Động**: Gửi email từ tài khoản Gmail cá nhân của mỗi người
+- ✅ **OAuth 2.0**: Xác thực an toàn với Google, KHÔNG cần mật khẩu
+- ✅ **Multiuser**: Mỗi người dùng có tài khoản Gmail riêng
+- ✅ **Progress Tracking**: Theo dõi tiến độ gửi email real-time
+- ✅ **Log File**: Tải file CSV kết quả sau khi gửi
 
 ---
 
-## 🚂 Bước 2: Deploy Lên Railway
+## 📋 Yêu Cầu Hệ Thống
 
-### 2.1 Push Code Lên GitHub
+- Python 3.10+
+- Git
+- Tài khoản GitHub
+- Tài khoản Railway (https://railway.app)
+- Tài khoản Google Cloud
+
+---
+
+## 🔧 Cài Đặt Local
+
+### 1. Clone Repository
 ```bash
-git init
+git clone https://github.com/YOUR_USERNAME/gmail-oauth-tool.git
+cd gmail-oauth-tool
+```
+
+### 2. Tạo Virtual Environment
+```bash
+python -m venv venv
+
+# Trên Windows:
+venv\Scripts\activate
+
+# Trên Mac/Linux:
+source venv/bin/activate
+```
+
+### 3. Cài Đặt Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Tạo File .env
+```bash
+# Windows PowerShell:
+New-Item -Name ".env" -ItemType File
+# Hoặc dùng text editor, tạo file .env
+
+# Mac/Linux:
+touch .env
+```
+
+**Nội dung .env:**
+```
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE
+GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE
+REDIRECT_URI=http://localhost:5000/oauth2callback
+FLASK_SECRET_KEY=your-random-secret-key-change-me
+```
+
+### 5. Chạy Ứng Dụng
+```bash
+python app.py
+```
+
+Vào: http://localhost:5000
+
+---
+
+## 🌐 Deploy Lên Railway
+
+### Bước 1: Setup Google Cloud OAuth
+
+#### 1.1 Tạo Google Cloud Project
+1. Vào https://console.cloud.google.com
+2. Nhấp **"Tạo dự án"** → Đặt tên `Gmail OAuth Tool`
+
+#### 1.2 Bật Gmail API
+1. Tìm kiếm **"Gmail API"** → Nhấp **"Bật"**
+
+#### 1.3 Tạo OAuth 2.0 Credentials
+1. Vào **"Xác thực"** (Authentication)
+2. Nhấp **"+ Tạo Credentials"** → **"OAuth 2.0 Client ID"**
+3. **Cấu hình OAuth Consent Screen:**
+   - Chọn **"External"**
+   - Điền **App name**: `Gmail OAuth Tool`
+   - Thêm email hỗ trợ
+   - Thêm scope: `gmail.send`
+   - Lưu
+
+4. **Tạo Client ID:**
+   - Chọn **"Ứng dụng Web"**
+   - **Authorized JavaScript origins:**
+     ```
+     http://localhost:5000
+     https://your-railway-domain.up.railway.app
+     ```
+   - **Authorized redirect URIs:**
+     ```
+     http://localhost:5000/oauth2callback
+     https://your-railway-domain.up.railway.app/oauth2callback
+     ```
+   - Nhấp **"Tạo"** → Sao chép **Client ID** và **Client Secret**
+
+---
+
+### Bước 2: Push Code Lên GitHub
+
+```bash
 git add .
-git commit -m "Initial commit"
+git commit -m "Initial commit - Gmail OAuth Tool"
 git branch -M main
 git remote add origin https://github.com/YOUR_USERNAME/gmail-oauth-tool.git
 git push -u origin main
 ```
 
-### 2.2 Deploy Trên Railway
+---
+
+### Bước 3: Deploy Trên Railway
+
 1. Vào https://railway.app
 2. Nhấp **"New Project"** → **"Deploy from GitHub"**
 3. Chọn repo `gmail-oauth-tool`
-4. Railway tự động detect `Procfile` và deploy
+4. Railway tự động detect `Procfile` và deploy (~3-5 phút)
 
-### 2.3 Thêm Biến Môi Trường
-1. Vào tab **"Variables"** trong Railway dashboard
-2. Thêm các biến:
+---
+
+### Bước 4: Lấy Railway Domain
+
+1. Vào **"Settings"** của project
+2. Tìm **"Public URL"** (ví dụ: `https://gmail-oauth-tool-production-xyz.up.railway.app`)
+
+---
+
+### Bước 5: Thêm Biến Môi Trường
+
+1. Vào Railway Dashboard → **"Variables"**
+2. Thêm:
 
 ```
 GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE
 GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE
-REDIRECT_URI=https://your-railway-domain.railway.app/oauth2callback
+REDIRECT_URI=https://your-railway-domain.up.railway.app/oauth2callback
 FLASK_SECRET_KEY=your-random-secret-key-12345
 ```
 
-**Lấy Railway domain:**
-- Vào **"Settings"** → Tìm **"Public URL"**
-- Ví dụ: `https://gmail-oauth-tool-production.up.railway.app`
+3. Nhấp **"Deploy"**
 
 ---
 
-## ✅ Bước 3: Kiểm Tra
+### Bước 6: Cập Nhật Google Cloud Credentials
 
-1. Vào URL của Railway app
+1. Quay lại https://console.cloud.google.com
+2. **Credentials** → OAuth 2.0 Client ID
+3. Thêm vào **Authorized redirect URIs:**
+   ```
+   https://your-railway-domain.up.railway.app/oauth2callback
+   ```
+4. Lưu
+
+---
+
+## ✅ Test Ứng Dụng
+
+1. Vào Railway URL: `https://your-railway-domain.up.railway.app`
 2. Nhấp **"🔐 Đăng Nhập Gmail"**
-3. Đăng nhập bằng tài khoản Gmail
-4. Nếu thành công, sẽ hiển thị email của bạn ở góc phải
+3. Đăng Nhập bằng tài khoản Google
+4. Nếu thành công, sẽ hiển thị email ở góc phải ✅
 
 ---
 
-## 📁 Cấu Trúc Thư Mục
+## 📂 Cấu Trúc Thư Mục
 
 ```
 gmail-oauth-tool/
-├── app.py                    # Backend chính (Multiuser)
+├── app.py                      # Backend chính
+├── requirements.txt            # Dependencies
+├── Procfile                    # Railway config
+├── runtime.txt                 # Python version
+├── README.md                   # Tài liệu
+├── .gitignore                  # Git ignore
+├── .env                        # Environment variables (KHÔNG PUSH)
 ├── modules/
 │   ├── __init__.py
-│   ├── email_sender_oauth.py # Gửi email qua Gmail API
-│   ├── excel_splitter.py     # Tách file Excel
-│   └── utils.py              # Hỗ trợ Excel
+│   ├── email_sender_oauth.py   # Gửi email qua Gmail API
+│   ├── excel_splitter.py       # Tách file Excel
+│   └── utils.py                # Hỗ trợ Excel
 ├── templates/
-│   └── index_multiuser.html  # Giao diện (Login/Logout)
-├── requirements.txt          # Dependencies
-├── Procfile                  # Railway config
-└── .gitignore               # Git ignore
-```
-
----
-
-## 🔧 Local Testing
-
-```bash
-# 1. Cài dependencies
-pip install -r requirements.txt
-
-# 2. Tạo file .env
-echo "GOOGLE_CLIENT_ID=YOUR_CLIENT_ID" > .env
-echo "GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET" >> .env
-echo "REDIRECT_URI=http://localhost:5000/oauth2callback" >> .env
-echo "FLASK_SECRET_KEY=secret123" >> .env
-
-# 3. Chạy ứng dụng
-python app.py
-
-# 4. Vào http://localhost:5000
+│   └── index_multiuser.html    # Giao diện
+├── flask_session/              # Session files (KHÔNG PUSH)
+└── __pycache__/                # Cache Python (KHÔNG PUSH)
 ```
 
 ---
 
 ## 🆘 Troubleshooting
 
-### "redirect_uri_mismatch" error
-- Kiểm tra `REDIRECT_URI` trong Google Cloud Console khớp với `REDIRECT_URI` trong Railway
+### "redirect_uri_mismatch" Error
+- Kiểm tra `REDIRECT_URI` trong biến môi trường khớp với Google Cloud
 
-### "Invalid client" error
+### "Invalid client" Error
 - Kiểm tra `GOOGLE_CLIENT_ID` và `GOOGLE_CLIENT_SECRET` chính xác
 
-### Email không gửi được
-- Kiểm tra tài khoản Gmail không bật 2FA
-- Nếu bật 2FA, setup "App Password" cũng không cần vì ta dùng OAuth
+### App không load
+- Vào Railway Logs kiểm tra lỗi
+- Đảm bảo `Procfile` có trong repo
+
+### Email không gửi
+- Kiểm tra token hạn hết (refresh token)
+- Kiểm tra scope `gmail.send` được thêm
+
+---
+
+## 🔐 Bảo Mật
+
+⚠️ **QUAN TRỌNG:**
+- ❌ KHÔNG commit file `.env`
+- ❌ KHÔNG share `GOOGLE_CLIENT_SECRET`
+- ❌ KHÔNG push `__pycache__/` hoặc `flask_session/`
+- ✅ Dùng Railway Environment Variables thay vì hardcode
 
 ---
 
 ## 📝 Lưu Ý
 
 ✅ Mỗi user cần đăng nhập Gmail một lần
-✅ Token tự động lưu trong session
+✅ Token tự động lưu trong session của user
 ✅ Không cần upload `credentials.json`
 ✅ Support multiuser - mỗi người có token riêng
 ✅ OAuth token tự động làm mới khi hết hạn
 
 ---
 
-## 🎯 Tóm Tắt
+## 👥 Chia Sẻ Cho Mọi Người
 
-| Bước | Công Việc |
-|------|----------|
-| 1 | Setup Google Cloud OAuth |
-| 2 | Push code lên GitHub |
-| 3 | Deploy trên Railway |
-| 4 | Thêm biến môi trường |
-| 5 | Test đăng nhập |
-| 6 | Chia sẻ link cho team |
+Sau khi triển khai thành công, chia sẻ URL:
+```
+https://your-railway-domain.up.railway.app
+```
+
+Mỗi người chỉ cần:
+1. Vào link
+2. Đăng Nhập Gmail
+3. Sử dụng ứng dụng
+
+---
+
+## 📊 Quy Trình Sử Dụng
+
+1. **Tách File Excel** (Không cần đăng nhập)
+   - Upload file Excel gốc
+   - Chọn cột cần chia
+   - Tải ZIP file
+
+2. **Đăng Nhập Gmail** (Cần đăng nhập)
+   - Nhấp "Đăng Nhập Gmail"
+   - Xác thực bằng Google
+
+3. **Gửi Email**
+   - Upload ZIP + Email list
+   - Điền thông tin email
+   - Nhấp "Gửi Email Tự Động"
+
+4. **Tải Log**
+   - Download file CSV kết quả
+
+---
+
+## 📧 Liên Hệ
+
+Nếu có vấn đề, vui lòng tạo Issue trên GitHub.
+
+---
