@@ -280,8 +280,10 @@ def send_emails_route():
         
         print(f"\n🔵 [Send Emails] Started by: {session['user_email']}")
         
+        # ⭐ FIX: LẤY TẤT CẢ DỮ LIỆU CẦN THIẾT TRƯỚC KHI CHẠY BACKGROUND THREAD
         job_id = datetime.now().strftime('%Y%m%d_%H%M%S')
         sender_name = request.form.get('sender_name', 'System')
+        sender_email = session['user_email']  # ✅ LẤY NGAY TRONG REQUEST CONTEXT
         
         ref_col = request.form['ref_col']
         name_col = request.form.get('name_col')
@@ -312,6 +314,9 @@ def send_emails_route():
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_folder)
         
+        # ⭐ FIX: LẤY CREDENTIALS DICT NGAY TRONG REQUEST CONTEXT
+        creds_dict = session['credentials'].copy()  # ✅ COPY ngay đây
+        
         email_status[job_id] = {
             'status': 'processing',
             'progress': 0,
@@ -319,12 +324,12 @@ def send_emails_route():
             'log_buffer': None
         }
         
+        # ⭐ FIX: BACKGROUND THREAD - KHÔNG TRUY CẬP SESSION
         def send_in_background():
             try:
                 from modules.email_sender_oauth import send_emails_oauth
                 
-                # ✅ Restore credentials from session
-                creds_dict = session['credentials']
+                # ✅ TẠI LẠI CREDENTIALS TỪ DICT (KHÔNG LẤY TỪ SESSION)
                 credentials = Credentials(
                     token=creds_dict['token'],
                     refresh_token=creds_dict['refresh_token'],
@@ -336,7 +341,7 @@ def send_emails_route():
                 
                 log_buffer = send_emails_oauth(
                     credentials=credentials,
-                    sender_email=session['user_email'],
+                    sender_email=sender_email,  # ✅ DÙNG biến được truyền vào
                     sender_name=sender_name,
                     excel_folder=extract_folder,
                     email_file_path=excel_email_path,
@@ -358,8 +363,11 @@ def send_emails_route():
                 email_status[job_id]['status'] = 'failed'
                 email_status[job_id]['error'] = str(e)
                 print(f"❌ [Send Emails] Failed: {str(e)}")
+                import traceback
+                traceback.print_exc()
         
-        thread = threading.Thread(target=send_in_background)
+        # ✅ CHẠY BACKGROUND THREAD
+        thread = threading.Thread(target=send_in_background, daemon=True)
         thread.start()
         
         return jsonify({
@@ -369,6 +377,8 @@ def send_emails_route():
     
     except Exception as e:
         print(f"❌ [Send Emails] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 def update_progress(job_id, current, total):
