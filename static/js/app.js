@@ -1,276 +1,232 @@
-// ==========================================
-// EMAIL SENDING FUNCTIONALITY
-// ==========================================
-
-const emailForm = document.getElementById('emailForm');
-const submitBtn = document.getElementById('submitBtn');
-const progressSection = document.getElementById('progressSection');
-const progressFill = document.getElementById('progressFill');
-const progressText = document.getElementById('progressText');
-const downloadBtn = document.getElementById('downloadBtn');
-
-if (emailForm) {
-  emailForm.addEventListener('submit', handleEmailSubmit);
-}
-
 /**
- * Handle email form submission
+ * APP.JS - Logic xử lý giao diện
+ * Bao gồm:
+ * 1. Khởi tạo Theme (Sáng/Tối/Aurora)
+ * 2. Xử lý Form (Floating Labels & File Inputs)
+ * 3. Xử lý Form Tách File (Split Form)
+ * 4. Xử lý Form Gửi Email (Email Form)
+ * 5. Theo dõi tiến độ (Polling)
+ * 6. Các hàm tiện ích (UI Helpers)
  */
-async function handleEmailSubmit(e) {
-  e.preventDefault();
 
-  // Update UI
-  submitBtn.disabled = true;
-  submitBtn.textContent = '⏳ Đang xử lý...';
-  progressSection.style.display = 'block';
-  downloadBtn.style.display = 'none';
+document.addEventListener("DOMContentLoaded", () => {
+  
+  // ==========================================
+  // 1. KHỞI TẠO THEME
+  // ==========================================
+  const themeButtons = document.querySelectorAll(".theme-switcher button");
+  const storedTheme = localStorage.getItem("app-theme") || "aurora"; // Mặc định là 'aurora'
 
-  // Scroll to progress section on mobile
-  if (window.innerWidth < 768) {
-    setTimeout(() => {
-      progressSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
-  }
-
-  const formData = new FormData(emailForm);
-
-  try {
-    const response = await fetch('/send_emails', {
-      method: 'POST',
-      body: formData
+  function setTheme(theme) {
+    document.body.dataset.theme = theme;
+    localStorage.setItem("app-theme", theme);
+    themeButtons.forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.theme === theme);
     });
-
-    const result = await response.json();
-
-    if (result.error) {
-      showError('❌ Lỗi: ' + result.error);
-      resetForm();
-      return;
-    }
-
-    const jobId = result.job_id;
-    await pollEmailStatus(jobId);
-
-  } catch (error) {
-    showError('❌ Lỗi: ' + error.message);
-    resetForm();
   }
-}
 
-/**
- * Poll email sending status
- */
-async function pollEmailStatus(jobId) {
-  return new Promise((resolve) => {
-    const checkInterval = setInterval(async () => {
+  themeButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      setTheme(button.dataset.theme);
+    });
+  });
+
+  // Kích hoạt theme đã lưu khi tải trang
+  setTheme(storedTheme);
+
+  // ==========================================
+  // 2. XỬ LÝ FORM CHUNG (FILE INPUTS)
+  // ==========================================
+  const fileInputs = document.querySelectorAll('input[type="file"]');
+  fileInputs.forEach(input => {
+    input.addEventListener('change', (e) => {
+      const fileNameSpan = e.target.closest('.file-group').querySelector('.file-name');
+      const file = e.target.files[0];
+      if (file) {
+        // Validate file size
+        if (!validateFileSize(file, 50)) { // 50MB limit
+          e.target.value = ''; // Clear input
+          fileNameSpan.textContent = "File quá lớn! (Max 50MB)";
+          fileNameSpan.style.color = "var(--danger)";
+          return;
+        }
+        fileNameSpan.textContent = file.name;
+        fileNameSpan.style.color = "var(--text-color)";
+      } else {
+        fileNameSpan.textContent = "Chưa chọn file...";
+        fileNameSpan.style.color = "var(--text-color-muted)";
+      }
+    });
+    // Kích hoạt label khi click vào span
+    const fileNameSpan = input.closest('.file-group').querySelector('.file-name');
+    if (fileNameSpan) {
+      fileNameSpan.addEventListener('click', () => {
+        input.click();
+      });
+    }
+  });
+
+  function validateFileSize(file, maxSizeMB = 50) {
+    const maxBytes = maxSizeMB * 1024 * 1024;
+    return file.size <= maxBytes;
+  }
+  
+  // ==========================================
+  // 3. XỬ LÝ FORM TÁCH FILE
+  // ==========================================
+  const splitForm = document.getElementById("splitForm");
+  const loadingOverlay = document.getElementById("loading-overlay");
+  const loadingText = document.getElementById("loading-text");
+
+  if (splitForm) {
+    splitForm.addEventListener("submit", () => {
+      // Không dùng e.preventDefault() để trình duyệt xử lý download
+      showLoading("Đang tách file, vui lòng chờ...");
+
+      // Tự động ẩn loading sau 8s phòng trường hợp lỗi
+      // (Trình duyệt sẽ tự xử lý việc tải file về)
+      setTimeout(hideLoading, 8000);
+    });
+  }
+
+  // ==========================================
+  // 4. XỬ LÝ FORM GỬI EMAIL
+  // ==========================================
+  const emailForm = document.getElementById("emailForm");
+  const submitBtn = document.getElementById("submitBtn");
+  const progressSection = document.getElementById("progressSection");
+  const progressFill = document.getElementById("progressFill");
+  const progressText = document.getElementById("progressText");
+  const downloadBtn = document.getElementById("downloadBtn");
+
+  if (emailForm) {
+    emailForm.addEventListener("submit", handleEmailSubmit);
+  }
+
+  async function handleEmailSubmit(e) {
+    e.preventDefault();
+
+    // Hiển thị giao diện loading
+    showLoading("Đang tải file lên và khởi tạo...");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "⏳ Đang gửi...";
+    progressSection.style.display = "none";
+    downloadBtn.style.display = "none";
+
+    const formData = new FormData(emailForm);
+
+    try {
+      const response = await fetch("/send_emails", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        showError("❌ Lỗi: " + (result.error || `Server error ${response.status}`));
+        resetEmailForm();
+        return;
+      }
+
+      // Bắt đầu theo dõi tiến độ
+      const jobId = result.job_id;
+      progressSection.style.display = "flex";
+      progressText.textContent = "Đang chuẩn bị gửi...";
+      
+      // Ẩn loading overlay để hiện progress bar
+      hideLoading();
+
+      // Cuộn xuống thanh progress trên di động
+      if (window.innerWidth < 768) {
+        progressSection.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      // Bắt đầu Polling
+      await pollEmailStatus(jobId);
+
+    } catch (error) {
+      showError("❌ Lỗi kết nối: " + error.message);
+      resetEmailForm();
+    }
+  }
+
+  // ==========================================
+  // 5. THEO DÕI TIẾN ĐỘ (POLLING)
+  // ==========================================
+  // (Logic này lấy từ file app.js của bạn, rất tốt!)
+  async function pollEmailStatus(jobId) {
+    let intervalId = setInterval(async () => {
       try {
         const statusResponse = await fetch(`/check_status/${jobId}`);
         const status = await statusResponse.json();
 
-        if (status.status === 'processing') {
+        if (status.status === "processing") {
           updateProgress(status);
-        } else if (status.status === 'completed') {
-          clearInterval(checkInterval);
+        } else if (status.status === "completed") {
+          clearInterval(intervalId);
           completeEmailSending(jobId);
-          resolve();
-        } else if (status.status === 'failed') {
-          clearInterval(checkInterval);
-          showError('❌ Gửi email thất bại!');
-          resetForm();
-          resolve();
+        } else if (status.status === "failed") {
+          clearInterval(intervalId);
+          showError("❌ Gửi email thất bại! " + (status.error || ""));
+          resetEmailForm();
         }
       } catch (error) {
-        console.error('Error checking status:', error);
+        console.error("Lỗi polling:", error);
+        clearInterval(intervalId);
+        showError("❌ Mất kết nối khi đang kiểm tra tiến độ.");
+        resetEmailForm();
       }
-    }, 2000);
-  });
-}
-
-/**
- * Update progress bar
- */
-function updateProgress(status) {
-  const progress = status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0;
-  progressFill.style.width = progress + '%';
-  progressFill.textContent = progress + '%';
-  progressText.textContent = `Đã gửi ${status.progress}/${status.total} email...`;
-}
-
-/**
- * Complete email sending
- */
-function completeEmailSending(jobId) {
-  progressFill.style.width = '100%';
-  progressFill.textContent = '100%';
-  progressText.textContent = '✅ Hoàn tất! Nhấn nút bên dưới để tải file log.';
-
-  downloadBtn.style.display = 'block';
-  downloadBtn.onclick = () => {
-    window.location.href = `/download_log/${jobId}`;
-  };
-
-  resetForm();
-}
-
-/**
- * Reset form state
- */
-function resetForm() {
-  submitBtn.disabled = false;
-  submitBtn.textContent = '🚀 Gửi Email Tự Động';
-}
-
-/**
- * Show error notification
- */
-function showError(message) {
-  alert(message);
-  progressSection.style.display = 'none';
-}
-
-// ==========================================
-// SPLIT FILE FUNCTIONALITY
-// ==========================================
-
-const splitForm = document.getElementById('splitForm');
-const splitProgressSection = document.getElementById('splitProgressSection');
-
-if (splitForm) {
-  splitForm.addEventListener('submit', handleSplitSubmit);
-}
-
-/**
- * Handle split file form submission
- */
-async function handleSplitSubmit(e) {
-  e.preventDefault();
-
-  // Show progress
-  if (splitProgressSection) {
-    splitProgressSection.style.display = 'block';
-    splitProgressSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 2000); // 2 giây 1 lần
   }
 
-  // Submit form naturally (let browser handle file download)
-  // Note: We can't track progress for direct form submission
-  // Just let the browser handle it
-  splitForm.submit();
+  // ==========================================
+  // 6. CÁC HÀM TIỆN ÍCH (UI HELPERS)
+  // ==========================================
 
-  // Reset after a delay
-  setTimeout(() => {
-    if (splitProgressSection) {
-      splitProgressSection.style.display = 'none';
-    }
-  }, 3000);
-}
-
-// ==========================================
-// UTILITY FUNCTIONS
-// ==========================================
-
-/**
- * Detect if device is mobile
- */
-function isMobile() {
-  return window.innerWidth < 768;
-}
-
-/**
- * Format file size
- */
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
-
-/**
- * Validate file size
- */
-function validateFileSize(file, maxSizeMB = 50) {
-  const maxBytes = maxSizeMB * 1024 * 1024;
-  if (file.size > maxBytes) {
-    alert(`❌ File quá lớn! Tối đa: ${maxSizeMB}MB (File của bạn: ${formatFileSize(file.size)})`);
-    return false;
+  function updateProgress(status) {
+    const progress = status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0;
+    progressFill.style.width = progress + "%";
+    progressFill.textContent = progress + "%";
+    progressText.textContent = `Đã gửi ${status.progress}/${status.total} email...`;
   }
-  return true;
-}
 
-// Add file size validation
-document.addEventListener('DOMContentLoaded', () => {
-  const fileInputs = document.querySelectorAll('input[type="file"]');
+  function completeEmailSending(jobId) {
+    progressFill.style.width = "100%";
+    progressFill.style.backgroundColor = "var(--success)"; // Đổi màu xanh
+    progressFill.textContent = "100%";
+    progressText.textContent = "✅ Hoàn tất! Nhấn nút bên dưới để tải file log.";
 
-  fileInputs.forEach(input => {
-    input.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file && !validateFileSize(file)) {
-        e.target.value = '';
-      }
-    });
-  });
-});
+    downloadBtn.style.display = "block";
+    downloadBtn.onclick = () => {
+      window.location.href = `/download_log/${jobId}`;
+    };
 
-// ==========================================
-// RESPONSIVE ADJUSTMENTS
-// ==========================================
-
-/**
- * Adjust layout on window resize
- */
-window.addEventListener('resize', () => {
-  const isMobileView = isMobile();
-  // Add responsive adjustments here if needed
-});
-
-/**
- * Prevent layout shift on iOS
- */
-if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-  document.addEventListener('touchmove', (e) => {
-    if (e.target.closest('input, textarea, select, button, a')) {
-      return;
-    }
-  }, false);
-}
-
-// ==========================================
-// SERVICE WORKER / PWA (Optional)
-// ==========================================
-
-/**
- * Register service worker for offline support
- */
-if ('serviceWorker' in navigator) {
-  // Uncomment when you have a service worker
-  // navigator.serviceWorker.register('/static/js/sw.js');
-}
-
-// ==========================================
-// INITIALIZE
-// ==========================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Log initialization
-  console.log('✅ App initialized');
-
-  // Add smooth scroll behavior
-  if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
-    document.documentElement.style.scrollBehavior = 'smooth';
+    resetEmailForm();
   }
-});
 
-// ==========================================
-// ERROR HANDLING
-// ==========================================
+  function resetEmailForm() {
+    hideLoading();
+    submitBtn.disabled = false;
+    submitBtn.textContent = "🚀 Gửi Email Tự Động";
+    progressFill.style.backgroundColor = "var(--primary)"; // Reset màu
+  }
 
-window.addEventListener('error', (event) => {
-  console.error('Global error:', event.error);
-  // Could send to error tracking service here
-});
+  function showError(message) {
+    hideLoading();
+    alert(message); // Dùng alert đơn giản nhưng hiệu quả
+    progressSection.style.display = "none";
+  }
 
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-  // Could send to error tracking service here
-});
+  function showLoading(text) {
+    loadingText.textContent = text || "Đang xử lý...";
+    loadingOverlay.classList.add("active");
+  }
+
+  function hideLoading() {
+    loadingOverlay.classList.remove("active");
+  }
+
+  console.log("✅ Ứng dụng đã khởi tạo thành công!");
+
+}); // Hết DOMContentLoaded

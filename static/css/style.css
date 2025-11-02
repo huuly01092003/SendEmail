@@ -1,545 +1,561 @@
 /* ==========================================
-   RESPONSIVE DESIGN - MOBILE FIRST
+   BIẾN MÀU (CSS VARIABLES) & THEMES
    ========================================== */
-
 :root {
-  --primary-color: #10b981;
-  --primary-hover: #059669;
-  --danger-color: #ef4444;
-  --danger-hover: #dc2626;
-  --info-bg: #f0f9ff;
-  --info-border: #3b82f6;
-  --warning-bg: #fffbeb;
-  --warning-border: #f59e0b;
-  --success-bg: #f0fdf4;
-  --success-border: #10b981;
+  --font-main: "Manrope", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  
+  --primary: #007aff;
+  --primary-hover: #0056b3;
+  --secondary: #6c757d;
+  --secondary-hover: #5a6268;
+  --danger: #dc3545;
+  --danger-hover: #c82333;
+  --success: #28a745;
+  --info: #17a2b8;
+  --warning: #ffc107;
+  --warning-bg: rgba(255, 193, 7, 0.1);
+  --info-bg: rgba(23, 162, 184, 0.1);
+  
+  --transition-speed: 0.3s;
 }
 
+/* --- Theme Sáng (Light) --- */
+[data-theme="light"] {
+  --bg-color: #f0f2f5;
+  --text-color: #212529;
+  --text-color-muted: #6c757d;
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(255, 255, 255, 0.4);
+  --input-bg: #ffffff;
+  --input-border: #ced4da;
+  --fieldset-border: #dee2e6;
+  --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+  --navbar-bg: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(240,242,245,0.7) 100%);
+  --navbar-text: #343a40;
+}
+
+/* --- Theme Tối (Dark) --- */
+[data-theme="dark"] {
+  --bg-color: #1a1a1a;
+  --text-color: #f0f2f5;
+  --text-color-muted: #adb5bd;
+  --card-bg: rgba(30, 30, 30, 0.65);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --input-bg: #2a2a2a;
+  --input-border: #495057;
+  --fieldset-border: #495057;
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --navbar-bg: linear-gradient(135deg, rgba(40,40,40,0.8) 0%, rgba(30,30,30,0.7) 100%);
+  --navbar-text: #f8f9fa;
+  --warning-bg: rgba(255, 193, 7, 0.15);
+  --info-bg: rgba(23, 162, 184, 0.15);
+}
+
+/* --- Theme Aurora (Động) --- */
+[data-theme="aurora"] {
+  --bg-color: #121212; /* Nền dự phòng */
+  --text-color: #f0f2f5;
+  --text-color-muted: #adb5bd;
+  --card-bg: rgba(30, 30, 30, 0.55);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --input-bg: #2a2a2a;
+  --input-border: #495057;
+  --fieldset-border: #495057;
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  --navbar-bg: linear-gradient(135deg, rgba(40,40,40,0.7) 0%, rgba(30,30,30,0.6) 100%);
+  --navbar-text: #f8f9fa;
+  --warning-bg: rgba(255, 193, 7, 0.15);
+  --info-bg: rgba(23, 162, 184, 0.15);
+}
+
+/* ==========================================
+   CÀI ĐẶT CƠ BẢN (RESET)
+   ========================================== */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
-
-html, body {
-  height: 100%;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+html {
+  scroll-behavior: smooth;
 }
-
 body {
-  background-color: #f9fafb;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-main);
+  background-color: var(--bg-color);
+  color: var(--text-color);
   line-height: 1.6;
-  color: #374151;
+  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* ==========================================
-   CONTAINER & LAYOUT
+   NỀN ĐỘNG (ANIMATED BACKGROUND)
    ========================================== */
+.background-animation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+[data-theme="aurora"] .background-animation {
+  background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+  background-size: 400% 400%;
+  animation: gradient-flow 15s ease infinite;
+  opacity: 1;
+}
+@keyframes gradient-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
 
-.container {
-  max-width: 950px;
+/* ==========================================
+   LOADER & THEME SWITCHER
+   ========================================== */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.loading-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+.loading-overlay p {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-top: 20px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.theme-switcher {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  z-index: 1000;
+  background: var(--card-bg);
+  backdrop-filter: blur(5px);
+  border-radius: 20px;
+  padding: 5px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 5px;
+  border: 1px solid var(--card-border);
+}
+.theme-switcher button {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  padding: 5px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+  opacity: 0.7;
+}
+.theme-switcher button:hover {
+  transform: scale(1.1);
+  opacity: 1;
+}
+.theme-switcher button.active {
+  background-color: rgba(0, 122, 255, 0.3);
+  opacity: 1;
+}
+
+/* ==========================================
+   LAYOUT & GLASSMORPHISM CARD
+   ========================================== */
+.page-container {
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 12px;
+  padding: 80px 20px 20px 20px;
 }
 
-@media (min-width: 768px) {
-  .container {
-    padding: 20px;
+/* Hiệu ứng xuất hiện */
+.card-glass, .navbar {
+  animation: fadeInUp 0.5s ease-out forwards;
+  opacity: 0;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card-glass {
+  background: var(--card-bg);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow);
+  padding: 25px;
+  margin-bottom: 25px;
+  transition: background-color var(--transition-speed) ease, border var(--transition-speed) ease;
+}
+.card-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 25px;
+  color: var(--text-color);
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--primary);
+  display: inline-block;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 25px;
+}
+@media (min-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr 1.5fr; /* Cột 1 nhỏ, Cột 2 lớn */
   }
+  #split-card { order: 1; }
+  #email-card { order: 2; }
 }
-
-.card {
-  background: #ffffff;
-  padding: 16px;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-  margin-bottom: 16px;
-}
-
-@media (min-width: 768px) {
-  .card {
-    padding: 25px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
-    margin-bottom: 25px;
-  }
-}
-
-/* ==========================================
-   NAVBAR
-   ========================================== */
 
 .navbar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  border-radius: 8px;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 15px;
+  padding: 15px 25px;
 }
-
 .navbar h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
   margin: 0;
-  font-size: 1.25rem;
-  flex: 1;
-  min-width: 200px;
+  color: var(--navbar-text);
 }
-
-@media (min-width: 640px) {
-  .navbar {
-    padding: 15px 20px;
-    margin-bottom: 25px;
-  }
-
-  .navbar h1 {
-    font-size: 1.5rem;
-  }
-}
-
 .user-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 15px;
 }
-
-@media (min-width: 640px) {
-  .user-info {
-    gap: 15px;
-    flex-wrap: nowrap;
-  }
-}
-
 .user-email {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  white-space: nowrap;
-}
-
-@media (min-width: 640px) {
-  .user-email {
-    padding: 8px 12px;
-    font-size: 0.9rem;
-  }
-}
-
-/* ==========================================
-   ALERTS
-   ========================================== */
-
-.alert-info {
-  background-color: var(--info-bg);
-  border-left: 4px solid var(--info-border);
-  color: #1e40af;
-  padding: 12px;
-  border-radius: 6px;
   font-size: 0.9rem;
-}
-
-.alert-warning {
-  background-color: var(--warning-bg);
-  border-left: 4px solid var(--warning-border);
-  color: #92400e;
-  padding: 12px;
-  border-radius: 6px;
-}
-
-.alert-warning text-center {
-  text-align: center;
-}
-
-@media (min-width: 768px) {
-  .alert-info,
-  .alert-warning {
-    font-size: 1rem;
-  }
+  font-weight: 500;
+  color: var(--navbar-text);
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 /* ==========================================
-   FORM ELEMENTS
+   FORM & FLOATING LABELS (Fix lỗi căn chỉnh)
    ========================================== */
+.form-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.form-group {
+  position: relative;
+}
 
-input,
-textarea,
-select {
+/* Floating Label Inputs */
+.floating-label input,
+.floating-label textarea {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 16px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  font-family: inherit;
+  padding: 14px 12px 10px 12px;
+  font-size: 1rem;
+  font-family: var(--font-main);
+  background: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
 }
-
-/* iOS fix - prevent zoom on input focus */
-@media (max-width: 768px) {
-  input,
-  textarea,
-  select {
-    font-size: 16px; /* Prevents iOS zoom */
-  }
+.floating-label label {
+  position: absolute;
+  top: 14px;
+  left: 12px;
+  font-size: 1rem;
+  color: var(--text-color-muted);
+  transition: all 0.2s ease;
+  pointer-events: none;
+  background: transparent;
 }
-
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: var(--info-border);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+/* Trạng thái khi focus hoặc có nội dung */
+.floating-label input:focus,
+.floating-label input:not(:placeholder-shown),
+.floating-label textarea:focus,
+.floating-label textarea:not(:placeholder-shown) {
   outline: none;
+  border-color: var(--primary);
 }
-
-input[type="file"] {
-  padding: 8px;
-  cursor: pointer;
+.floating-label input:focus + label,
+.floating-label input:not(:placeholder-shown) + label,
+.floating-label textarea:focus + label,
+.floating-label textarea:not(:placeholder-shown) + label {
+  top: -18px;
+  left: 0px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: var(--primary);
+  padding: 0 5px;
 }
-
-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 6px;
+/* Xóa placeholder ' ' khi focus */
+.floating-label input:focus::placeholder {
+  color: transparent;
 }
-
-@media (min-width: 768px) {
-  label {
-    font-size: 0.875rem;
-    margin-bottom: 8px;
-  }
-}
-
 textarea {
   resize: vertical;
   min-height: 120px;
 }
 
+/* Custom File Input (Khoa học hơn) */
+.file-group {
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--input-bg);
+}
+.file-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  display: block;
+  margin-bottom: 5px;
+}
+.file-group input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.file-group .file-name {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-color-muted);
+  cursor: pointer;
+  padding: 8px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-group .file-name:hover {
+  color: var(--text-color);
+}
+
+/* Fieldset (Nhóm các input) */
+.form-fieldset {
+  border: 1px solid var(--fieldset-border);
+  border-radius: 8px;
+  padding: 25px 20px 20px 20px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.form-fieldset legend {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0 10px;
+  color: var(--text-color);
+}
+
 /* ==========================================
    BUTTONS
    ========================================== */
-
 .btn {
-  font-weight: bold;
-  border-radius: 6px;
-  padding: 12px 20px;
-  transition: all 0.2s;
-  display: inline-block;
-  text-decoration: none;
+  font-family: var(--font-main);
+  font-weight: 600;
+  font-size: 1rem;
   text-align: center;
+  text-decoration: none;
   cursor: pointer;
+  padding: 12px 20px;
+  border-radius: 8px;
   border: none;
-  font-size: 0.95rem;
+  transition: all 0.2s ease;
   user-select: none;
-  -webkit-user-select: none;
+    
 }
-
-.btn:active {
-  transform: scale(0.98);
+.btn-lg {
+  font-size: 1.1rem;
+  padding: 14px 24px;
 }
-
-@media (min-width: 768px) {
-  .btn {
-    font-size: 1rem;
-  }
-
-  .btn:active {
-    transform: none;
-  }
-}
-
 .btn-primary {
-  background-color: var(--primary-color);
-  color: white;
-}
+  background-color: var(--primary);
+  color: #ffffff;
 
+}
 .btn-primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 122, 255, 0.3);
 }
-
-.btn-primary:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-  opacity: 0.7;
+.btn-secondary {
+  background-color: var(--secondary);
+  color: #ffffff;
 }
-
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--secondary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(108, 117, 125, 0.3);
+}
 .btn-danger {
-  background-color: var(--danger-color);
-  color: white;
+  background-color: var(--danger);
+  color: #ffffff;
   padding: 8px 12px;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
-
 .btn-danger:hover {
   background-color: var(--danger-hover);
 }
+.btn:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
+  box-shadow: none;
+}
+.w-full { width: 100%; }
 
 /* ==========================================
-   PROGRESS BAR
+   ALERTS & PROGRESS
    ========================================== */
+.alert {
+  padding: 12px 15px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+}
+.alert-info {
+  background-color: var(--info-bg);
+  border-color: var(--info);
+  color: var(--text-color);
+}
+.alert-warning {
+  background-color: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--text-color);
+}
+.text-center { text-align: center; }
 
+.progress-section {
+  margin-top: 25px;
+  border: 1px solid var(--fieldset-border);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.progress-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+}
 .progress-bar {
   width: 100%;
-  height: 30px;
-  background-color: #e5e7eb;
-  border-radius: 6px;
+  height: 25px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 20px;
   overflow: hidden;
-  margin-top: 15px;
 }
-
 .progress-fill {
   height: 100%;
-  background-color: var(--primary-color);
-  transition: width 0.3s ease;
+  background-color: var(--primary);
+  transition: width 0.4s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-weight: bold;
-  font-size: 0.85rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.progress-text {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--text-color-muted);
+}
+#downloadBtn {
+  margin-top: 10px;
 }
 
-@media (min-width: 640px) {
-  .progress-fill {
+/* ==========================================
+   HELPERS & MOBILE RESPONSIVE
+   ========================================== */
+.gap-4 { gap: 16px; }
+.grid { display: grid; }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.footer {
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.7;
+  font-size: 0.9rem;
+  margin-top: 30px;
+  padding: 20px;
+}
+
+/* --- Mobile View --- */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 70px 10px 10px 10px;
+  }
+  .card-glass {
+    padding: 15px;
+  }
+  .card-title {
+    font-size: 1.4rem;
+  }
+  .grid-cols-2, .grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+  .navbar {
+    padding: 15px;
+  }
+  .navbar h1 {
+    font-size: 1.2rem;
+  }
+  .theme-switcher {
+    top: 10px;
+    right: 10px;
+  }
+  .theme-switcher button {
     font-size: 1rem;
   }
-}
-
-/* ==========================================
-   HEADINGS & TEXT
-   ========================================== */
-
-h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 16px;
-}
-
-@media (min-width: 768px) {
-  h2 {
-    font-size: 1.875rem;
-    margin-bottom: 20px;
-  }
-}
-
-h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 12px;
-}
-
-@media (min-width: 768px) {
-  h3 {
-    font-size: 1.125rem;
-  }
-}
-
-p {
-  margin-bottom: 12px;
-  color: #4b5563;
-}
-
-ol {
-  margin-left: 20px;
-  color: #4b5563;
-}
-
-li {
-  margin-bottom: 8px;
-}
-
-/* ==========================================
-   GRID & SPACING
-   ========================================== */
-
-.grid {
-  display: grid;
-  gap: 12px;
-}
-
-.grid-cols-1 {
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 640px) {
-  .grid {
-    gap: 16px;
-  }
-}
-
-@media (min-width: 768px) {
-  .grid-cols-2 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .grid-cols-3 {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* ==========================================
-   SECTION STYLING
-   ========================================== */
-
-.border {
-  border: 1px solid #e5e7eb;
-}
-
-.rounded-lg {
-  border-radius: 8px;
-}
-
-.p-4 {
-  padding: 16px;
-}
-
-.bg-gray-50 {
-  background-color: #f9fafb;
-}
-
-.bg-gray-700 {
-  color: #374151;
-}
-
-.text-center {
-  text-align: center;
-}
-
-.mt-4 {
-  margin-top: 16px;
-}
-
-.mt-6 {
-  margin-top: 24px;
-}
-
-.mb-3 {
-  margin-bottom: 12px;
-}
-
-.mb-4 {
-  margin-bottom: 16px;
-}
-
-.mb-6 {
-  margin-bottom: 24px;
-}
-
-.space-y-3 > * + * {
-  margin-top: 12px;
-}
-
-.space-y-4 > * + * {
-  margin-top: 16px;
-}
-
-.space-y-6 > * + * {
-  margin-top: 24px;
-}
-
-/* ==========================================
-   FOOTER
-   ========================================== */
-
-footer {
-  text-align: center;
-  color: #9ca3af;
-  font-size: 0.75rem;
-  margin-top: 32px;
-  padding: 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-@media (min-width: 768px) {
-  footer {
-    font-size: 0.875rem;
-    margin-top: 48px;
-    padding: 20px;
-  }
-}
-
-/* ==========================================
-   UTILITY CLASSES
-   ========================================== */
-
-.w-full {
-  width: 100%;
-}
-
-.font-bold {
-  font-weight: 700;
-}
-
-.font-semibold {
-  font-weight: 600;
-}
-
-.underline {
-  text-decoration: underline;
-}
-
-.text-sm {
-  font-size: 0.875rem;
-}
-
-.text-lg {
-  font-size: 1.125rem;
-}
-
-.text-2xl {
-  font-size: 1.5rem;
-}
-
-/* ==========================================
-   ACCESSIBILITY
-   ========================================== */
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ==========================================
-   DARK MODE SUPPORT (Optional)
-   ========================================== */
-
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: #111827;
-    color: #f3f4f6;
-  }
-
-  .card {
-    background-color: #1f2937;
-    color: #f3f4f6;
-  }
-
-  input,
-  textarea,
-  select {
-    background-color: #374151;
-    color: #f3f4f6;
-    border-color: #4b5563;
-  }
-
-  label {
-    color: #e5e7eb;
-  }
-
-  h2,
-  h3 {
-    color: #f3f4f6;
+  .user-email {
+    max-width: 100px;
   }
 }
