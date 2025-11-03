@@ -2,27 +2,23 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Công Cụ Tách File & Gửi Email Tự Động</title>
-      <!-- Favicon chuẩn -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Công Cụ Tách File & Gửi Email</title>
+          <!-- Favicon chuẩn -->
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16x16.png') }}">
     <link rel="shortcut icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
 
     <!-- Dành cho iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 
 <body>
-    
     <div class="background-animation"></div>
 
     <div id="loading-overlay" class="loading-overlay">
@@ -42,106 +38,125 @@
             <h1>🧩 Công Cụ Tách File & Gửi Email Tự Động</h1>
             <div class="user-info">
                 {% if user_email %}
-                    <span class="user-email" title="{{ user_email }}">👤 {{ user_email }}</span>
+                    <span class="user-email">👤 {{ user_email }}</span>
                     <a href="/auth/logout" class="btn btn-danger">Đăng Xuất</a>
                 {% else %}
-                    <span class="user-email">👤 Khách</span>
+                    <a href="/auth/login" class="btn btn-primary">🔐 Đăng Nhập Gmail</a>
                 {% endif %}
             </div>
         </header>
 
-        {% if not user_email %}
-        <main>
-            <section class="card-glass auth-prompt">
-                <div class="alert alert-warning text-center">
-                    <h2 class="card-title">🔐 Vui lòng Đăng Nhập</h2>
-                    <p></p>
-                    <a href="/auth/login" class="btn btn-primary btn-lg">
-                        🔓 Đăng Nhập Với Gmail
-                    </a>
-                </div>
-            </section>
-        </main>
-        {% endif %}
-
         <main class="main-grid">
 
-            <section class="card-glass" id="split-card">
+            <section class="card-glass">
                 <h2 class="card-title">🧾 1. Tách File Excel</h2>
                 <form action="/split" method="post" enctype="multipart/form-data" class="form-layout" id="splitForm">
                     <div class="alert alert-info">
-                        Tách file Excel gốc thành file ZIP chứa các file nhỏ theo cột định danh.
+                        📋 Tách file Excel theo cột định danh.
                     </div>
 
                     <div class="form-group file-group">
-                        <label for="split-file">📂 File Excel gốc (.xlsx, .xls)</label>
+                        <label for="split-file">📂 File Excel gốc</label>
                         <input type="file" name="file" id="split-file" accept=".xlsx,.xls" required />
                         <span class="file-name">Chưa chọn file...</span>
                     </div>
 
-                    <div class="form-group floating-label">
-                        <input type="text" id="split-column" name="column_name" placeholder=" " required />
-                        <label for="split-column">🧱 Tên cột cần chia (VD: Mã Đối Tác)</label>
+                    <div class="form-group" id="sheet-group" style="display: none;">
+                        <label for="sheet-select">📄 Sheet cần tách</label>
+                        <select id="sheet-select" name="sheet_name" style="width: 100%; padding: 10px 12px; font-size: 1rem; background: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border); border-radius: 8px; font-family: var(--font-main);" required>
+                            <option value="">-- Chọn Sheet --</option>
+                        </select>
                     </div>
 
                     <div class="grid grid-cols-3 gap-4">
                         <div class="form-group floating-label">
-                            <input type="number" id="template-end-row" name="template_end_row" placeholder=" " required />
-                            <label for="template-end-row">📄Template</label>
+                            <input type="number" id="template-end-row" name="template_end_row" min="1" placeholder=" " required />
+                            <label for="template-end-row">📋Templatec</label>
                         </div>
                         <div class="form-group floating-label">
-                            <input type="number" id="data-start-row" name="start_row" placeholder=" " required />
+                            <input type="number" id="data-start-row" name="start_row" min="1" placeholder=" " required />
                             <label for="data-start-row">📊 Dòng đầu</label>
                         </div>
                         <div class="form-group floating-label">
-                            <input type="number" id="data-end-row" name="end_row" placeholder=" " required />
+                            <input type="number" id="data-end-row" name="end_row" min="1" placeholder=" " required />
                             <label for="data-end-row">📈 Dòng cuối</label>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-secondary w-full">⬇️ Tách File và Tải ZIP</button>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="form-group floating-label">
+                            <input type="text" id="start-col" name="start_col" placeholder=" " />
+                            <label for="start-col">Cột đầu (A, B)</label>
+                        </div>
+                        <div class="form-group floating-label">
+                            <input type="text" id="end-col" name="end_col" placeholder=" " />
+                            <label for="end-col">Cột cuối</label>
+                        </div>
+                        <div class="form-group floating-label">
+                            <input type="text" id="split-column" name="split_column" placeholder=" " required />
+                            <label for="split-column">Cột cần chia</label>
+                        </div>
+                    </div>
+
+                    <fieldset class="form-fieldset">
+                        <legend>📝 Tên cột ID (Tuỳ Chọn)</legend>
+                        <div class="alert alert-info">
+                            <b>ℹ️ Nhập tên cột để tạo tên file:</b> <code>MÃ-TÊN.xlsx</code>
+                        </div>
+                        <div class="form-group floating-label">
+                            <input type="text" id="name-column" name="name_col" placeholder=" " />
+                            <label for="name-column">Tên cột dùng cho tên file</label>
+                        </div>
+                    </fieldset>
+
+                    <button type="submit" class="btn btn-secondary w-full btn-lg">⬇️ Tách File & Tải ZIP</button>
                 </form>
             </section>
-            
-            <section class="card-glass" id="email-card" {% if not user_email %}style="display:none;"{% endif %}>
+
+            <section class="card-glass" id="email-section">
                 <h2 class="card-title">✉️ 2. Gửi Email Báo Cáo</h2>
                 
                 <form id="emailForm" class="form-layout">
-                    
                     <fieldset class="form-fieldset">
                         <legend>👤 Thông Tin Người Gửi</legend>
-                        <div class="alert alert-info">
-                            <b>ℹ️ Email gửi:</b> {{ user_email }}
-                        </div>
+                        <div class="alert alert-info"> <b>✅ Email gửi:</b> <span id="sender-email">{% if user_email %}{{ user_email }}{% else %}Chưa đăng nhập{% endif %}</span></div>
                         <div class="form-group floating-label">
-                            <input type="text" id="sender-name" name="sender_name" placeholder=" " required />
-                            <label for="sender-name">Tên người gửi (VD: Công ty ABC)</label>
+                            <input type="text" id="sender-name" name="sender_name" value="Công ty" placeholder=" " required />
+                            <label for="sender-name">Tên người gửi</label>
                         </div>
                     </fieldset>
 
                     <fieldset class="form-fieldset">
-                        <legend>📦 Dữ Liệu Gửi Mail</legend>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="form-group file-group">
-                                <label for="split-zip">File ZIP đã tách:</label>
-                                <input type="file" name="split_zip" id="split-zip" accept=".zip" required />
-                                <span class="file-name">Chưa chọn file...</span>
-                            </div>
-                            <div class="form-group file-group">
-                                <label for="email-file">File DS Email:</label>
-                                <input type="file" name="email_file" id="email-file" accept=".xlsx,.xls" required />
-                                <span class="file-name">Chưa chọn file...</span>
-                            </div>
+                        <legend>📦 Upload Folder File Excel</legend>
+                        <div class="form-group file-group">
+                            <label for="excel-files">📂 Chọn file .xlsx</label>
+                            <input type="file" name="files" id="excel-files" accept=".xlsx" multiple required />
+                            <span class="file-name">0 file được chọn</span>
                         </div>
+                        <div id="file-count" class="alert alert-info" style="display:none;">
+                            📊 Đã chọn: <strong id="count-text">0</strong> file
+                        </div>
+                    </fieldset>
 
+                    <fieldset class="form-fieldset">
+                        <legend>📧 File Danh Sách Email</legend>
+                        <div class="form-group file-group">
+                            <label for="email-file">File Excel chứa danh sách email</label>
+                            <input type="file" name="email_file" id="email-file" accept=".xlsx,.xls" required />
+                            <span class="file-name">Chưa chọn file...</span>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-fieldset">
+                        <legend>🔗 Cấu Hình Cột</legend>
                         <div class="grid grid-cols-3 gap-4">
                             <div class="form-group floating-label">
                                 <input type="text" id="ref-col" name="ref_col" placeholder=" " required />
-                                <label for="ref-col">Cột ID chính</label>
+                                <label for="ref-col">Cột Mã ID chính</label>
                             </div>
                             <div class="form-group floating-label">
                                 <input type="text" id="name-col" name="name_col" placeholder=" " />
-                                <label for="name-col">Cột Tên ID</label>
+                                <label for="name-col">Cột Tên</label>
                             </div>
                             <div class="form-group floating-label">
                                 <input type="text" id="email-col" name="email_col" placeholder=" " required />
@@ -155,12 +170,12 @@
                                 <label for="cc-col">Cột Email CC</label>
                             </div>
                             <div class="form-group floating-label">
-                                <input type="number" id="email-start-row" name="start_row_email" placeholder=" " required />
-                                <label for="email-start-row">Dòng bắt đầu</label>
+                                <input type="number" id="email-start-row" name="start_row_email"  min="1" placeholder=" " required />
+                                <label for="email-start-row">Dòng email bắt đầu</label>
                             </div>
                             <div class="form-group floating-label">
-                                <input type="number" id="email-end-row" name="end_row_email" placeholder=" " required />
-                                <label for="email-end-row">Dòng kết thúc</label>
+                                <input type="number" id="email-end-row" name="end_row_email" min="1" placeholder=" " required />
+                                <label for="email-end-row">Dòng email kết thúc</label>
                             </div>
                         </div>
                     </fieldset>
@@ -178,6 +193,9 @@ Xin gửi báo cáo tháng này kèm theo.
 
 Trân trọng!</textarea>
                             <label for="body">Nội dung</label>
+                        </div>
+                        <div class="alert alert-info">
+                            <b>🔤 Biến có sẵn:</b> {ma_npp} (Mã), {ten_npp} (Tên)
                         </div>
                     </fieldset>
 
@@ -197,8 +215,15 @@ Trân trọng!</textarea>
         </main>
 
         <footer class="footer">
-            © 2025 Modern UI Refactor. All rights reserved.
+            © 2025 Gmail OAuth Tool. Built with ❤️
         </footer>
     </div>
+
+    <style>
+        #sheet-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+    </style>
 </body>
 </html>
