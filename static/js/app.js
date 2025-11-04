@@ -1,21 +1,10 @@
-/**
- * APP.JS - Logic xử lý giao diện
- * Bao gồm:
- * 1. Khởi tạo Theme (Sáng/Tối/Aurora)
- * 2. Xử lý Form (Floating Labels & File Inputs)
- * 3. Xử lý Form Tách File (Split Form)
- * 4. Xử lý Form Gửi Email (Email Form)
- * 5. Theo dõi tiến độ (Polling)
- * 6. Các hàm tiện ích (UI Helpers)
- */
-
 document.addEventListener("DOMContentLoaded", () => {
   
   // ==========================================
-  // 1. KHỞI TẠO THEME
+  // THEME MANAGEMENT
   // ==========================================
   const themeButtons = document.querySelectorAll(".theme-switcher button");
-  const storedTheme = localStorage.getItem("app-theme") || "aurora"; // Mặc định là 'aurora'
+  const storedTheme = localStorage.getItem("app-theme") || "aurora";
 
   function setTheme(theme) {
     document.body.dataset.theme = theme;
@@ -31,34 +20,47 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Kích hoạt theme đã lưu khi tải trang
   setTheme(storedTheme);
 
   // ==========================================
-  // 2. XỬ LÝ FORM CHUNG (FILE INPUTS)
+  // FILE INPUT HANDLER
   // ==========================================
   const fileInputs = document.querySelectorAll('input[type="file"]');
   fileInputs.forEach(input => {
     input.addEventListener('change', (e) => {
-      const fileNameSpan = e.target.closest('.file-group').querySelector('.file-name');
-      const file = e.target.files[0];
-      if (file) {
-        // Validate file size
-        if (!validateFileSize(file, 50)) { // 50MB limit
-          e.target.value = ''; // Clear input
-          fileNameSpan.textContent = "File quá lớn! (Max 50MB)";
-          fileNameSpan.style.color = "var(--danger)";
-          return;
+      const fileGroup = e.target.closest('.file-group');
+      const fileNameSpan = fileGroup?.querySelector('.file-name');
+      
+      if (input.id === 'excel-files') {
+        const count = e.target.files.length;
+        fileNameSpan.textContent = count > 0 ? `✅ ${count} file được chọn` : "Chưa chọn file...";
+        
+        const countDiv = document.getElementById('file-count');
+        if (count > 0) {
+          document.getElementById('count-text').textContent = count;
+          countDiv.style.display = 'block';
+        } else {
+          countDiv.style.display = 'none';
         }
-        fileNameSpan.textContent = file.name;
-        fileNameSpan.style.color = "var(--text-color)";
       } else {
-        fileNameSpan.textContent = "Chưa chọn file...";
-        fileNameSpan.style.color = "var(--text-color-muted)";
+        const file = e.target.files[0];
+        if (file) {
+          if (!validateFileSize(file, 50)) {
+            e.target.value = '';
+            fileNameSpan.textContent = "File quá lớn! (Max 50MB)";
+            fileNameSpan.style.color = "var(--danger)";
+            return;
+          }
+          fileNameSpan.textContent = file.name;
+          fileNameSpan.style.color = "var(--text-color)";
+        } else {
+          fileNameSpan.textContent = "Chưa chọn file...";
+          fileNameSpan.style.color = "var(--text-color-muted)";
+        }
       }
     });
-    // Kích hoạt label khi click vào span
-    const fileNameSpan = input.closest('.file-group').querySelector('.file-name');
+
+    const fileNameSpan = input.closest('.file-group')?.querySelector('.file-name');
     if (fileNameSpan) {
       fileNameSpan.addEventListener('click', () => {
         input.click();
@@ -70,27 +72,160 @@ document.addEventListener("DOMContentLoaded", () => {
     const maxBytes = maxSizeMB * 1024 * 1024;
     return file.size <= maxBytes;
   }
-  
-  // ==========================================
-  // 3. XỬ LÝ FORM TÁCH FILE
-  // ==========================================
-  const splitForm = document.getElementById("splitForm");
-  const loadingOverlay = document.getElementById("loading-overlay");
-  const loadingText = document.getElementById("loading-text");
 
-  if (splitForm) {
-    splitForm.addEventListener("submit", () => {
-      // Không dùng e.preventDefault() để trình duyệt xử lý download
-      showLoading("Đang tách file, vui lòng chờ...");
+  // ==========================================
+  // SPLIT FORM - LOAD SHEETS
+  // ==========================================
+  const splitFileInput = document.getElementById('split-file');
+  const sheetSelect = document.getElementById('sheet-select');
+  const sheetGroup = document.getElementById('sheet-group');
 
-      // Tự động ẩn loading sau 8s phòng trường hợp lỗi
-      // (Trình duyệt sẽ tự xử lý việc tải file về)
-      setTimeout(hideLoading, 8000);
+  if (splitFileInput && sheetSelect && sheetGroup) {
+    splitFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        sheetGroup.style.display = 'none';
+        return;
+      }
+
+      showLoading("Đang đọc file Excel...");
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch('/get_sheets', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+        
+        if (result.sheets) {
+          sheetSelect.innerHTML = '<option value="">-- Chọn Sheet --</option>';
+          result.sheets.forEach(sheet => {
+            const option = document.createElement('option');
+            option.value = sheet;
+            option.textContent = sheet;
+            sheetSelect.appendChild(option);
+          });
+          sheetGroup.style.display = 'block';
+        } else if (result.error) {
+          alert('❌ Lỗi: ' + result.error);
+        }
+
+        hideLoading();
+      } catch (error) {
+        hideLoading();
+        alert('❌ Lỗi đọc file: ' + error.message);
+      }
     });
   }
 
   // ==========================================
-  // 4. XỬ LÝ FORM GỬI EMAIL
+  // SPLIT FORM SUBMIT
+  // ==========================================
+  const splitForm = document.getElementById("splitForm");
+  
+  if (splitForm) {
+    splitForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const sheetName = document.getElementById('sheet-select')?.value;
+      const splitColumn = document.getElementById('split-column')?.value;
+      const templateEndRow = document.getElementById('template-end-row')?.value;
+      const startRow = document.getElementById('data-start-row')?.value;
+      const endRow = document.getElementById('data-end-row')?.value;
+      
+      if (!sheetName) {
+        alert('❌ Vui lòng chọn Sheet!');
+        return;
+      }
+      if (!splitColumn) {
+        alert('❌ Vui lòng nhập Tên Cột Cần Chia!');
+        return;
+      }
+      if (!templateEndRow || !startRow || !endRow) {
+        alert('❌ Vui lòng nhập đầy đủ các dòng (Template, Dữ liệu đầu, Dữ liệu cuối)!');
+        return;
+      }
+      
+      showLoading("Đang tách file...");
+
+      const formData = new FormData(splitForm);
+
+      try {
+        const response = await fetch('/split', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'tach_file.zip';
+          a.click();
+          hideLoading();
+          alert('✅ Tách file thành công!');
+        } else {
+          const error = await response.text();
+          hideLoading();
+          alert('❌ ' + error);
+        }
+      } catch (error) {
+        hideLoading();
+        alert('❌ Lỗi: ' + error.message);
+      }
+    });
+  }
+
+  // ==========================================
+  // EMAIL FORM - UPLOAD FOLDER
+  // ==========================================
+  const excelFilesInput = document.getElementById('excel-files');
+  let uploadedFolderId = null;
+
+  if (excelFilesInput) {
+    excelFilesInput.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) {
+        uploadedFolderId = null;
+        return;
+      }
+
+      showLoading(`Đang tải ${files.length} file...`);
+
+      const formData = new FormData();
+      for (let file of files) {
+        formData.append('files', file);
+      }
+
+      try {
+        const response = await fetch('/upload_folder', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          uploadedFolderId = result.folder_id;
+          hideLoading();
+        } else {
+          hideLoading();
+          alert('❌ ' + (result.error || 'Upload lỗi'));
+        }
+      } catch (error) {
+        hideLoading();
+        alert('❌ ' + error.message);
+      }
+    });
+  }
+
+  // ==========================================
+  // EMAIL FORM SUBMIT
   // ==========================================
   const emailForm = document.getElementById("emailForm");
   const submitBtn = document.getElementById("submitBtn");
@@ -106,14 +241,19 @@ document.addEventListener("DOMContentLoaded", () => {
   async function handleEmailSubmit(e) {
     e.preventDefault();
 
-    // Hiển thị giao diện loading
-    showLoading("Đang tải file lên và khởi tạo...");
+    if (!uploadedFolderId) {
+      alert('❌ Vui lòng chọn file Excel trước!');
+      return;
+    }
+
+    showLoading("Đang tải lên và khởi tạo...");
     submitBtn.disabled = true;
     submitBtn.textContent = "⏳ Đang gửi...";
     progressSection.style.display = "none";
     downloadBtn.style.display = "none";
 
     const formData = new FormData(emailForm);
+    formData.append('folder_id', uploadedFolderId);
 
     try {
       const response = await fetch("/send_emails", {
@@ -129,20 +269,16 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Bắt đầu theo dõi tiến độ
       const jobId = result.job_id;
       progressSection.style.display = "flex";
       progressText.textContent = "Đang chuẩn bị gửi...";
       
-      // Ẩn loading overlay để hiện progress bar
       hideLoading();
 
-      // Cuộn xuống thanh progress trên di động
       if (window.innerWidth < 768) {
         progressSection.scrollIntoView({ behavior: "smooth", block: "center" });
       }
 
-      // Bắt đầu Polling
       await pollEmailStatus(jobId);
 
     } catch (error) {
@@ -152,9 +288,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================
-  // 5. THEO DÕI TIẾN ĐỘ (POLLING)
+  // POLLING EMAIL STATUS
   // ==========================================
-  // (Logic này lấy từ file app.js của bạn, rất tốt!)
   async function pollEmailStatus(jobId) {
     let intervalId = setInterval(async () => {
       try {
@@ -172,17 +307,13 @@ document.addEventListener("DOMContentLoaded", () => {
           resetEmailForm();
         }
       } catch (error) {
-        console.error("Lỗi polling:", error);
+        console.error("Polling error:", error);
         clearInterval(intervalId);
-        showError("❌ Mất kết nối khi đang kiểm tra tiến độ.");
+        showError("❌ Mất kết nối.");
         resetEmailForm();
       }
-    }, 2000); // 2 giây 1 lần
+    }, 2000);
   }
-
-  // ==========================================
-  // 6. CÁC HÀM TIỆN ÍCH (UI HELPERS)
-  // ==========================================
 
   function updateProgress(status) {
     const progress = status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0;
@@ -193,9 +324,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function completeEmailSending(jobId) {
     progressFill.style.width = "100%";
-    progressFill.style.backgroundColor = "var(--success)"; // Đổi màu xanh
+    progressFill.style.backgroundColor = "var(--success)";
     progressFill.textContent = "100%";
-    progressText.textContent = "✅ Hoàn tất! Nhấn nút bên dưới để tải file log.";
+    progressText.textContent = "✅ Hoàn tất! Tải file log bên dưới.";
 
     downloadBtn.style.display = "block";
     downloadBtn.onclick = () => {
@@ -209,24 +340,24 @@ document.addEventListener("DOMContentLoaded", () => {
     hideLoading();
     submitBtn.disabled = false;
     submitBtn.textContent = "🚀 Gửi Email Tự Động";
-    progressFill.style.backgroundColor = "var(--primary)"; // Reset màu
+    progressFill.style.backgroundColor = "var(--primary)";
   }
 
   function showError(message) {
     hideLoading();
-    alert(message); // Dùng alert đơn giản nhưng hiệu quả
+    alert(message);
     progressSection.style.display = "none";
   }
 
   function showLoading(text) {
-    loadingText.textContent = text || "Đang xử lý...";
-    loadingOverlay.classList.add("active");
+    document.getElementById('loading-text').textContent = text || "Đang xử lý...";
+    document.getElementById('loading-overlay').classList.add("active");
   }
 
   function hideLoading() {
-    loadingOverlay.classList.remove("active");
+    document.getElementById('loading-overlay').classList.remove("active");
   }
 
-  console.log("✅ Ứng dụng đã khởi tạo thành công!");
+  console.log("✅ Ứng dụng khởi tạo thành công!");
 
-}); // Hết DOMContentLoaded
+});
