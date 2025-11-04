@@ -17,6 +17,7 @@ import tempfile, zipfile
 import threading
 import os
 import shutil
+import json
 
 load_dotenv()
 
@@ -37,6 +38,10 @@ Session(app)
 SESSION_DIR = os.path.join(os.path.dirname(__file__), 'flask_session')
 os.makedirs(SESSION_DIR, exist_ok=True)
 
+# ✅ FIX: Job storage folder (persistent)
+JOB_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'job_storage')
+os.makedirs(JOB_STORAGE_DIR, exist_ok=True)
+
 STATE_STORE = {}
 
 SCOPES = [
@@ -51,13 +56,52 @@ CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 REDIRECT_URI = os.environ.get('REDIRECT_URI', 'http://localhost:5000/oauth2callback')
 
-email_status = {}
 UPLOAD_FOLDERS = {}
 
 if not CLIENT_ID or not CLIENT_SECRET:
     print("⚠️ WARNING: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set!")
 else:
     print("✅ OAuth Config Loaded Successfully")
+
+# ✅ FIX: Job Status Helper Functions
+def save_job_status(job_id, status_dict):
+    """Lưu job status vào file"""
+    job_file = os.path.join(JOB_STORAGE_DIR, f"{job_id}.json")
+    with open(job_file, 'w', encoding='utf-8') as f:
+        json.dump(status_dict, f)
+
+def load_job_status(job_id):
+    """Tải job status từ file"""
+    job_file = os.path.join(JOB_STORAGE_DIR, f"{job_id}.json")
+    if not os.path.exists(job_file):
+        return None
+    try:
+        with open(job_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return None
+
+def update_job_progress(job_id, current, total):
+    """Cập nhật tiến độ job"""
+    status = load_job_status(job_id)
+    if status:
+        status['progress'] = current
+        status['total'] = total
+        save_job_status(job_id, status)
+
+def save_job_log(job_id, log_buffer):
+    """Lưu log buffer vào file"""
+    log_file = os.path.join(JOB_STORAGE_DIR, f"{job_id}_log.csv")
+    log_buffer.seek(0)
+    with open(log_file, 'wb') as f:
+        f.write(log_buffer.read())
+
+def load_job_log(job_id):
+    """Tải log từ file"""
+    log_file = os.path.join(JOB_STORAGE_DIR, f"{job_id}_log.csv")
+    if os.path.exists(log_file):
+        return log_file
+    return None
 
 @app.before_request
 def make_session_permanent():
@@ -286,12 +330,14 @@ def send_emails_route():
         excel_email_path = os.path.join(temp_dir, "emails.xlsx")
         email_file.save(excel_email_path)
         
-        email_status[job_id] = {
+        # ✅ FIX: Lưu job status vào file thay vì memory
+        initial_status = {
             'status': 'processing',
             'progress': 0,
             'total': 0,
             'log_buffer': None
         }
+        save_job_status(job_id, initial_status)
         
         creds_dict = session['credentials'].copy()
         
@@ -323,15 +369,24 @@ def send_emails_route():
                     body_template=body,
                     start_row=start_row_email,
                     end_row=end_row_email,
-                    progress_callback=lambda current, total: update_progress(job_id, current, total)
+                    progress_callback=lambda current, total: update_job_progress(job_id, current, total)
                 )
                 
-                email_status[job_id]['status'] = 'completed'
-                email_status[job_id]['log_buffer'] = log_buffer
+                # ✅ FIX: Lưu log vào file
+                save_job_log(job_id, log_buffer)
+                
+                # ✅ FIX: Cập nhật status thành completed
+                status = load_job_status(job_id)
+                status['status'] = 'completed'
+                status['log_buffer'] = None  # Không lưu BytesIO trong JSON
+                save_job_status(job_id, status)
+                
                 print(f"✅ [Send Emails] Completed")
             except Exception as e:
-                email_status[job_id]['status'] = 'failed'
-                email_status[job_id]['error'] = str(e)
+                status = load_job_status(job_id)
+                status['status'] = 'failed'
+                status['error'] = str(e)
+                save_job_status(job_id, status)
                 print(f"❌ [Send Emails] Failed: {str(e)}")
                 import traceback
                 traceback.print_exc()
@@ -350,17 +405,13 @@ def send_emails_route():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-def update_progress(job_id, current, total):
-    if job_id in email_status:
-        email_status[job_id]['progress'] = current
-        email_status[job_id]['total'] = total
-
 @app.route('/check_status/<job_id>', methods=['GET'])
 def check_status(job_id):
-    if job_id not in email_status:
+    # ✅ FIX: Load từ file thay vì memory
+    status = load_job_status(job_id)
+    if not status:
         return jsonify({'error': 'Job not found'}), 404
     
-    status = email_status[job_id]
     return jsonify({
         'status': status['status'],
         'progress': status.get('progress', 0),
@@ -369,22 +420,21 @@ def check_status(job_id):
 
 @app.route('/download_log/<job_id>', methods=['GET'])
 def download_log(job_id):
-    if job_id not in email_status:
+    # ✅ FIX: Load log từ file thay vì memory
+    status = load_job_status(job_id)
+    if not status:
         return "Job not found", 404
     
-    if email_status[job_id]['status'] != 'completed':
+    if status['status'] != 'completed':
         return "Job not completed yet", 400
     
-    log_buffer = email_status[job_id]['log_buffer']
-    if not log_buffer:
+    log_file = load_job_log(job_id)
+    if not log_file:
         return "No log available", 404
-    
-    # ✅ FIX: Reset pointer về đầu trước khi gửi
-    log_buffer.seek(0)
     
     filename = f"email_log_{job_id}.csv"
     return send_file(
-        log_buffer, 
+        log_file, 
         as_attachment=True, 
         download_name=filename, 
         mimetype="text/csv"
