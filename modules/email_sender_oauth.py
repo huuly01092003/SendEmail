@@ -10,12 +10,14 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 import base64
+from collections import defaultdict # Import thêm
 
 # Hàm phụ trợ mới: Extract cả Mã và Tên từ tên file
 def extract_parts_from_filename(filename):
     """
     Extracts parts from filename
     Ví dụ: 'S12731-Công ty TNHH ABC.xlsx' -> ('S12731', 'Công ty TNHH ABC')
+    Ví dụ: 'S12731-Công ty TNHH ABC-XXX.xlsx' -> ('S12731', 'Công ty TNHH ABC-XXX')
     Ví dụ: 'S12731.xlsx' -> ('S12731', None)
     """
     basename = os.path.splitext(filename)[0]
@@ -42,9 +44,11 @@ def refresh_access_token_if_needed(credentials):
         print("✅ Access token refreshed")
     return credentials
 
-def create_message(sender, to, subject, body, file_bytes=None, filename=None, cc=None):
+def create_message(sender, to, subject, body, attachments=None, cc=None):
     """
     Tạo email message (MIME format)
+    ✅ SỬA ĐỔI: Chấp nhận một danh sách attachments
+    attachments là một list các tuple: [(filename, file_bytes_io), ...]
     """
     message = MIMEMultipart()
     message['From'] = sender
@@ -57,34 +61,38 @@ def create_message(sender, to, subject, body, file_bytes=None, filename=None, cc
     # Thêm nội dung email
     message.attach(MIMEText(body, 'plain', 'utf-8'))
     
-    # Xử lý attachment từ BytesIO
-    if file_bytes is not None and filename:
-        part = MIMEBase('application', "octet-stream")
-        part.set_payload(file_bytes.read())
-        encoders.encode_base64(part)
-        part.add_header('Content-Disposition', 'attachment', filename=filename)
-        message.attach(part)
+    # Xử lý attachments
+    if attachments:
+        for filename, file_bytes in attachments:
+            part = MIMEBase('application', "octet-stream")
+            # QUAN TRỌNG: reset con trỏ của BytesIO trước khi đọc
+            file_bytes.seek(0) 
+            part.set_payload(file_bytes.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', 'attachment', filename=filename)
+            message.attach(part)
 
     # Chuyển message thành format base64 cho Gmail API
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
     return {'raw': raw}
 
-def send_email_oauth(service, sender, to, subject, body, attachment_path=None, cc=None):
-    """Gửi email qua Gmail API"""
+def send_email_oauth(service, sender, to, subject, body, attachment_paths=None, cc=None):
+    """
+    Gửi email qua Gmail API
+    ✅ SỬA ĐỔI: Chấp nhận một danh sách các đường dẫn file (attachment_paths)
+    """
     try:
-        # ✅ FIX: Đọc file ở chế độ binary (rb) và dùng BytesIO để đính kèm
-        file_bytes = None
-        file_name = None
+        attachments = []
+        if attachment_paths:
+            for path in attachment_paths:
+                file_name = os.path.basename(path)
+                with open(path, 'rb') as f:
+                    file_bytes = BytesIO(f.read())
+                attachments.append((file_name, file_bytes))
         
-        if attachment_path:
-            file_name = os.path.basename(attachment_path)
-            with open(attachment_path, 'rb') as f:
-                file_bytes = BytesIO(f.read())
-
         message = create_message(
             sender, to, subject, body, 
-            file_bytes=file_bytes, 
-            filename=file_name, 
+            attachments=attachments, # Gửi list attachments
             cc=cc
         )
         
@@ -107,7 +115,7 @@ def send_emails_oauth(
     name_col=None,
     email_col=None,
     cc_col=None,
-    selected_col_for_match=None,
+    selected_col_for_match=None, # Không dùng nữa, nhưng giữ lại cho tương thích
     subject_template="",
     body_template="",
     start_row=2,
@@ -115,7 +123,13 @@ def send_emails_oauth(
     progress_callback=None,
     is_zip=None
 ):
-    """Gửi hàng loạt email"""
+    """
+    Gửi hàng loạt email
+    ✅ LOGIC ĐƯỢC VIẾT LẠI HOÀN TOÀN:
+    1. Quét và NHÓM file theo Mã ID.
+    2. Lặp qua TỪNG NHÓM ID (thay vì từng file).
+    3. Gửi 1 email duy nhất với NHIỀU file đính kèm cho mỗi ID.
+    """
     
     credentials = refresh_access_token_if_needed(credentials)
     
@@ -124,125 +138,114 @@ def send_emails_oauth(
     
     # Đọc danh sách email
     df_email = pd.read_excel(email_file_path)
-    # Lọc theo dòng bắt đầu/kết thúc do người dùng nhập (start_row là index 1)
     df_email = df_email.iloc[start_row-1:end_row] 
     
-    # ✅ FIX KeyError: Kiểm tra cột Mã ID chính
+    # Kiểm tra các cột
     print(f"🔍 Checking email list columns... (Ref: '{ref_col}', Name: '{name_col}')")
-
     if ref_col not in df_email.columns:
-        print(f"❌ LỖI NGHIÊM TRỌNG: Cột Mã ID chính '{ref_col}' KHÔNG TÌM THẤY trong file email.")
-        raise KeyError(f"Cột Mã ID chính '{ref_col}' không tìm thấy trong file email. Vui lòng kiểm tra lại file Excel và tên cột bạn nhập.")
-
-    # Kiểm tra cột Tên (nếu được nhập)
+        raise KeyError(f"Cột Mã ID chính '{ref_col}' không tìm thấy trong file email.")
     if name_col and name_col not in df_email.columns:
-        print(f"❌ LỖI NGHIÊM TRỌNG: Cột Tên '{name_col}' KHÔNG TÌM THẤY trong file email.")
-        raise KeyError(f"Cột Tên '{name_col}' (dùng để đối chiếu) không tìm thấy trong file email. Vui lòng kiểm tra lại.")
+        print(f"⚠️ Cảnh báo: Cột Tên '{name_col}' không tìm thấy. Tên sẽ được lấy từ tên file (nếu có).")
+    if email_col not in df_email.columns:
+        raise KeyError(f"Cột Email '{email_col}' không tìm thấy trong file email.")
         
     print("✅ Email list columns verified.")
     
     logs = []
     
-    # Lấy danh sách file trong thư mục
-    files = [f for f in os.listdir(excel_folder) if f.endswith('.xlsx')]
-    total_files = len(files)
+    # ✅ BƯỚC 1: QUÉT VÀ NHÓM FILE THEO MÃ ID
+    print("🔍 Scanning and grouping files by ID...")
+    files_map = defaultdict(list) # Key: npp_code, Value: [full_path, full_path, ...]
+    all_files_in_folder = [f for f in os.listdir(excel_folder) if f.endswith('.xlsx')]
     
-    if total_files == 0:
+    if not all_files_in_folder:
         print("⚠️ Không tìm thấy file Excel nào để gửi.")
         logs.append({
-            "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Code": "",
-            "Name": "",
-            "Email To": "",
-            "Email CC": "",
-            "Status": "Failed",
+            "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Code": "", "Name": "",
+            "Email To": "", "Email CC": "", "Status": "Failed",
             "Error": "Không tìm thấy file Excel nào để gửi."
         })
-        # Ghi log vào BytesIO
         df_log = pd.DataFrame([logs[0]])
         output = BytesIO()
         df_log.to_csv(output, index=False, encoding="utf-8-sig")
         output.seek(0)
         return output
 
-    print(f"🔍 Found {total_files} files to send")
-    
-    for current, file in enumerate(files, 1):
-        npp_code = ""
-        ten_npp = ""
-        email_to = ""
-        email_cc = ""
-        
+    for file in all_files_in_folder:
         try:
-            # ✅ BƯỚC 1: Extract CẢ HAI PHẦN từ filename
-            npp_code, npp_name_from_file = extract_parts_from_filename(file)
-
+            # Chỉ cần extract code. Tên file đầy đủ sẽ được đính kèm.
+            npp_code, _ = extract_parts_from_filename(file) 
+            
             if not npp_code:
                 logs.append({
-                    "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Code": "",
-                    "Name": file,
-                    "Email To": "",
-                    "Email CC": "",
-                    "Status": "Failed",
+                    "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Code": "", "Name": file,
+                    "Email To": "", "Email CC": "", "Status": "Failed",
                     "Error": f"Không thể trích xuất Mã ID từ tên file '{file}'"
                 })
-                print(f"❌ [{current}/{total_files}] Failed: Không thể trích xuất Mã ID từ tên file '{file}'")
+                print(f"❌ Failed: Không thể trích xuất Mã ID từ tên file '{file}'")
                 continue
-            
-            # ✅ BƯỚC 2: TÌM DỮ LIỆU KHỚP (ĐỐI CHIẾU 2 CỘT)
-            
-            # Điều kiện 1: Mã ID phải khớp (luôn luôn)
-            # Thêm .str.strip() để xóa khoảng trắng thừa cho Mã ID
-            match_id = (df_email[ref_col].astype(str).str.strip() == str(npp_code))
-            
-            matched = df_email[match_id]
-            
-            # Nếu người dùng có nhập "Cột Tên" VÀ tên file cũng có tên
-            if name_col and npp_name_from_file is not None:
-                # Phải khớp CẢ TÊN
-                print(f"  > [{current}/{total_files}] Matching ID '{npp_code}' AND Name '{npp_name_from_file}'...")
-                # Thêm .str.strip() cho Tên
-                match_name = (df_email[name_col].astype(str).str.strip() == str(npp_name_from_file).strip())
                 
-                # Kết hợp cả 2 điều kiện
-                matched = df_email[match_id & match_name]
-            else:
-                print(f"  > [{current}/{total_files}] Matching ID '{npp_code}' only...")
+            full_path = os.path.join(excel_folder, file)
+            files_map[npp_code].append(full_path)
+            
+        except Exception as e:
+            logs.append({
+                "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Code": "", "Name": file,
+                "Email To": "", "Email CC": "", "Status": "Failed",
+                "Error": f"Lỗi xử lý file '{file}': {e}"
+            })
+
+    print(f"✅ Found {len(all_files_in_folder)} files, grouped into {len(files_map)} unique IDs (jobs).")
+
+    # ✅ BƯỚC 2: LẶP QUA CÁC NHÓM ID, TÌM EMAIL VÀ GỬI
+    total_jobs = len(files_map)
+    
+    for current, (npp_code, attachment_paths) in enumerate(files_map.items(), 1):
+        email_to = ""
+        email_cc = ""
+        ten_npp = "Bạn" # Default
+        
+        try:
+            # Cập nhật tiến độ theo "job" (mỗi job là 1 ID, 1 email)
+            if progress_callback:
+                progress_callback(current, total_jobs)
+
+            # BƯỚC 2A: TÌM DỮ LIỆU KHỚP (CHỈ ĐỐI CHIẾU MÃ ID)
+            print(f"  > [{current}/{total_jobs}] Processing ID: {npp_code} ({len(attachment_paths)} files)")
+            
+            match_id = (df_email[ref_col].astype(str).str.strip() == str(npp_code))
+            matched = df_email[match_id]
 
             if matched.empty:
-                ten_npp = npp_name_from_file if npp_name_from_file else "N/A"
                 logs.append({
                     "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Code": npp_code,
-                    "Name": ten_npp,
-                    "Email To": "N/A",
-                    "Email CC": "N/A",
-                    "Status": "Skipped",
+                    "Name": "N/A (No match)",
+                    "Email To": "N/A", "Email CC": "N/A", "Status": "Skipped",
                     "Error": f"Không tìm thấy email khớp với Mã ID: {npp_code}"
                 })
-                print(f"⚠️ [{current}/{total_files}] Skipped: No match found for {npp_code} ({npp_name_from_file})")
+                print(f"⚠️ [{current}/{total_jobs}] Skipped: No match found for {npp_code}")
                 continue
             
             if len(matched) > 1:
-                ten_npp = npp_name_from_file if npp_name_from_file else "N/A"
                 logs.append({
                     "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Code": npp_code,
-                    "Name": ten_npp,
-                    "Email To": "N/A",
-                    "Email CC": "N/A",
-                    "Status": "Skipped",
+                    "Name": "N/A (Multiple matches)",
+                    "Email To": "N/A", "Email CC": "N/A", "Status": "Skipped",
                     "Error": f"Tìm thấy nhiều hơn 1 email khớp với Mã ID: {npp_code}"
                 })
-                print(f"⚠️ [{current}/{total_files}] Skipped: Multiple matches found for {npp_code}")
+                print(f"⚠️ [{current}/{total_jobs}] Skipped: Multiple matches found for {npp_code}")
                 continue
             
-            # Lấy thông tin email
+            # BƯỚC 2B: Lấy thông tin email (đã tìm thấy 1 match)
             row = matched.iloc[0]
             email_to = row[email_col] if email_col in row and pd.notna(row[email_col]) else ""
             email_cc = row[cc_col] if cc_col and cc_col in row and pd.notna(row[cc_col]) else ""
-            ten_npp = row[name_col] if name_col and name_col in row and pd.notna(row[name_col]) else "Bạn"
+            
+            # Ưu tiên lấy tên từ file email (chuyên nghiệp), nếu không có thì fallback là "Bạn"
+            if name_col and name_col in row and pd.notna(row[name_col]):
+                ten_npp = row[name_col]
             
             if not email_to or str(email_to).strip() == "":
                 logs.append({
@@ -254,26 +257,21 @@ def send_emails_oauth(
                     "Status": "Skipped",
                     "Error": "Địa chỉ email người nhận (TO) trống."
                 })
-                print(f"⚠️ [{current}/{total_files}] Skipped: TO email is empty for {npp_code}")
+                print(f"⚠️ [{current}/{total_jobs}] Skipped: TO email is empty for {npp_code}")
                 continue
             
-            # Cập nhật tiến độ
-            if progress_callback:
-                progress_callback(current, total_files)
-                
-            # Chuẩn bị và gửi email
+            # BƯỚC 2C: Chuẩn bị và gửi email
             subject = subject_template.replace("{ma_npp}", npp_code).replace("{ten_npp}", str(ten_npp))
             body = body_template.replace("{ma_npp}", npp_code).replace("{ten_npp}", str(ten_npp))
             
-            attachment_path = os.path.join(excel_folder, file)
-            
+            # GỬI EMAIL VỚI NHIỀU FILE
             success, error = send_email_oauth(
                 service,
                 f"{sender_name} <{sender_email}>",
                 email_to,
                 subject,
                 body,
-                attachment_path,
+                attachment_paths, # Gửi list paths
                 email_cc if email_cc and pd.notna(email_cc) and str(email_cc).strip() != "" else None
             )
             
@@ -285,9 +283,9 @@ def send_emails_oauth(
                     "Email To": email_to,
                     "Email CC": email_cc if email_cc else "",
                     "Status": "Success",
-                    "Error": ""
+                    "Error": f"Sent {len(attachment_paths)} files."
                 })
-                print(f"✅ [{current}/{total_files}] Sent to {email_to} ({npp_code} - {ten_npp})")
+                print(f"✅ [{current}/{total_jobs}] Sent to {email_to} ({npp_code} - {ten_npp}) with {len(attachment_paths)} files.")
             else:
                 logs.append({
                     "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -298,20 +296,10 @@ def send_emails_oauth(
                     "Status": "Failed",
                     "Error": error
                 })
-                print(f"❌ [{current}/{total_files}] Error sending to {email_to} ({npp_code}): {error}")
-        
-        except FileNotFoundError:
-            logs.append({
-                "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Code": npp_code,
-                "Name": ten_npp,
-                "Email To": email_to,
-                "Email CC": email_cc,
-                "Status": "Failed",
-                "Error": f"File not found: {file}"
-            })
-            print(f"❌ [{current}/{total_files}] File not found: {npp_code}")
+                print(f"❌ [{current}/{total_jobs}] Error sending to {email_to} ({npp_code}): {error}")
+
         except Exception as e:
+            # Log lỗi nghiêm trọng
             logs.append({
                 "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "Code": npp_code,
@@ -321,14 +309,14 @@ def send_emails_oauth(
                 "Status": "Failed",
                 "Error": str(e)
             })
-            print(f"❌ [{current}/{total_files}] Critical Error: {str(e)}")
+            print(f"❌ [{current}/{total_jobs}] Critical Error for ID {npp_code}: {str(e)}")
 
-    # ✅ FIX: Ghi log vào BytesIO buffer
+    # Ghi log vào BytesIO buffer
     df_log = pd.DataFrame(logs)
     
     output = BytesIO()
     df_log.to_csv(output, index=False, encoding="utf-8-sig")
-    output.seek(0)  # ✅ QUAN TRỌNG: reset pointer về đầu
+    output.seek(0)
     
     print("✅ Email sending completed.\n")
-    return output  # ✅ FIX: Trả về BytesIO, không phải tuple
+    return output

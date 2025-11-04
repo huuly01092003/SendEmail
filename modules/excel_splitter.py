@@ -48,6 +48,16 @@ def split_excel_new():
     try:
         file_bytes = file.read()
         
+        # ✅ SỬA ĐỔI: Lấy tên file gốc và làm sạch nó
+        original_filename_cleaned = "file_goc"
+        if file and file.filename:
+            # Tách tên, bỏ phần đuôi file (ví dụ: .xlsx)
+            original_filename_cleaned = os.path.splitext(file.filename)[0]
+            # Làm sạch tên file gốc (loại bỏ ký tự đặc biệt)
+            original_filename_cleaned = original_filename_cleaned.replace("/", "_").replace("\\", "_").replace(":", "_")
+            original_filename_cleaned = original_filename_cleaned.replace("*", "_").replace("?", "_").replace('"', "_")
+            original_filename_cleaned = original_filename_cleaned.replace(" ", "") # Loại bỏ khoảng trắng cho gọn
+        
         # Parse column range
         start_col_idx = None
         end_col_idx = None
@@ -134,14 +144,18 @@ def split_excel_new():
                 mã = code.replace("/", "_").replace("\\", "_").replace(":", "_")
                 mã = mã.replace("*", "_").replace("?", "_").replace('"', "_")
                 
-                filename = mã
+                filename_part1 = mã # Tên file phần 1 (Mã)
+                
                 if name_col_idx and name_col_idx >= min_col_to_read:
                     row_idx_first = row_indices[0]
                     tên = str(ws_orig.cell(row=row_idx_first, column=name_col_idx).value).strip()
                     tên = tên.replace("/", "_").replace("\\", "_")
-                    filename = f"{mã}-{tên}"
+                    filename_part1 = f"{mã}-{tên}" # Tên file phần 1 (Mã-Tên)
                 
-                print(f"  [{file_count}] Creating: {filename}.xlsx")
+                # ✅ SỬA ĐỔI: Nối tên file gốc vào
+                final_filename = f"{filename_part1}-{original_filename_cleaned}"
+                
+                print(f"  [{file_count}] Creating: {final_filename}.xlsx")
                 
                 # Tạo file Excel
                 buf = create_excel_file(
@@ -154,7 +168,8 @@ def split_excel_new():
                     max_col_to_read
                 )
                 
-                zipf.writestr(f"{filename}.xlsx", buf.read())
+                # Sử dụng tên file cuối cùng
+                zipf.writestr(f"{final_filename}.xlsx", buf.read())
         
         zip_buffer.seek(0)
         
